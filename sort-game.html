@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>软考修仙 · 顺序闯关</title>
+<style>
+  :root {
+    --ink: #0e0b14; --gold: #d9b45b; --cinnabar: #c0503c; --jade: #4a9d7c;
+    --paper: #f0e6d0; --dim: #8a7f6a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--ink); color: var(--paper); font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; overflow-x: hidden; }
+  #stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  #app { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: 14px 14px 50px; min-height: 100vh; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  @keyframes pop { 0%{transform:scale(.85);opacity:.4} 100%{transform:scale(1);opacity:1} }
+  @keyframes glowPulse { 0%,100%{ box-shadow: 0 0 8px rgba(217,180,91,.35);} 50%{ box-shadow: 0 0 22px rgba(217,180,91,.75);} }
+  @keyframes floatUp { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-40px)} }
+  .title-kai { font-family: "Kaiti SC", "STKaiti", "KaiTi", serif; letter-spacing: 2px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .btn-back { background: none; border: 1px solid rgba(217,180,91,.4); color: var(--gold); border-radius: 8px; padding: 6px 14px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .topbar h1 { font-size: 19px; color: var(--gold); }
+
+  /* 章节chips（横向滚动） */
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 12px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: var(--dim); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; font-family: inherit; white-space: nowrap; transition: all .2s; }
+  .chip.active { background: rgba(217,180,91,.15); border-color: var(--gold); color: var(--gold); }
+
+  /* 关卡列表 */
+  .level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .level-btn { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: var(--paper); border-radius: 10px; padding: 11px 10px; cursor: pointer; text-align: left; font-family: inherit; transition: border-color .2s; }
+  .level-btn:active { transform: scale(.97); }
+  .level-btn .lv-no { font-size: 10.5px; color: var(--dim); display: flex; justify-content: space-between; }
+  .level-btn .lv-title { font-size: 13.5px; margin-top: 3px; line-height: 1.4; font-weight: 600; }
+  .level-btn .lv-hint { font-size: 10px; color: var(--jade); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .level-btn.active { border-color: var(--gold); background: rgba(217,180,91,.1); }
+  .level-btn.done { border-color: rgba(74,157,124,.55); }
+  .level-btn.done .lv-no::after { content: " ✓"; color: var(--jade); }
+
+  /* 游戏区 */
+  .game-card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 16px 14px; }
+  .game-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .game-head .g-title { font-family: "Kaiti SC", serif; font-size: 19px; color: var(--gold); }
+  .game-head .g-prog { font-size: 12px; color: var(--dim); }
+  .game-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 11px; color: var(--dim); }
+  .game-meta .mn { background: rgba(217,180,91,.1); border: 1px solid rgba(217,180,91,.3); color: var(--gold); border-radius: 6px; padding: 2px 8px; font-family: "Kaiti SC", serif; font-size: 12px; }
+  .game-meta .src { color: var(--dim); }
+
+  /* 流程图 */
+  .flow { display: flex; flex-direction: column; gap: 7px; margin: 10px 0 14px; }
+  .flow-slot { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.03); border: 1px dashed rgba(255,255,255,.15); border-radius: 10px; padding: 9px 12px; min-height: 44px; transition: all .25s; }
+  .flow-slot .slot-no { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--dim); color: var(--dim); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; font-family: "Kaiti SC", serif; }
+  .flow-slot .slot-main { flex: 1; }
+  .flow-slot .slot-cue { font-size: 10px; color: var(--dim); }
+  .flow-slot.current { border-color: var(--gold); background: rgba(217,180,91,.07); animation: glowPulse 1.6s infinite; }
+  .flow-slot.current .slot-no { border-color: var(--gold); color: var(--gold); }
+  .flow-slot.current .slot-cue { color: var(--gold); }
+  .flow-slot.filled { border-style: solid; border-color: rgba(74,157,124,.5); background: rgba(74,157,124,.08); animation: pop .3s; }
+  .flow-slot.filled .slot-no { border-color: var(--jade); color: var(--jade); }
+  .flow-slot.filled .slot-name { color: var(--paper); font-weight: 600; }
+  .flow-slot .slot-desc { font-size: 10.5px; color: var(--dim); margin-left: auto; text-align: right; max-width: 45%; }
+
+  /* 步骤积木 */
+  .bricks-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+  .bricks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 40px; }
+  .brick { background: linear-gradient(135deg, rgba(217,180,91,.16), rgba(255,255,255,.04)); border: 1px solid rgba(217,180,91,.45); border-radius: 10px; padding: 9px 12px; cursor: pointer; font-family: inherit; color: var(--paper); text-align: left; transition: transform .12s; animation: pop .25s; }
+  .brick:active { transform: scale(.95); }
+  .brick .b-name { font-size: 13.5px; font-weight: 600; }
+  .brick .b-cue { font-size: 10.5px; color: var(--jade); margin-top: 2px; }
+  .brick .b-desc { font-size: 10.5px; color: var(--dim); margin-top: 1px; }
+  .brick.wrong { animation: shake .4s; border-color: var(--cinnabar); }
+  .brick.hint-glow { border-color: var(--jade); box-shadow: 0 0 14px rgba(74,157,124,.7); }
+  .brick.used { display: none; }
+
+  /* 控制按钮 */
+  .controls { display: flex; gap: 7px; flex-wrap: wrap; }
+  .ctrl { flex: 1; min-width: 72px; border-radius: 10px; padding: 11px 6px; font-size: 13px; cursor: pointer; font-family: "Kaiti SC", serif; letter-spacing: 1px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.05); color: var(--paper); }
+  .ctrl:active { transform: scale(.97); }
+  .ctrl.primary { background: linear-gradient(135deg, #a8873a, var(--gold)); color: var(--ink); border: none; font-weight: 700; }
+  .ctrl.jade { border-color: var(--jade); color: var(--jade); }
+
+  /* 通关 */
+  .win-box { text-align: center; padding: 24px 10px; }
+  .win-box .win-big { font-family: "Kaiti SC", serif; font-size: 26px; color: var(--gold); letter-spacing: 4px; animation: pop .5s; }
+  .win-box .win-sub { font-size: 13px; color: var(--dim); margin-top: 10px; line-height: 1.9; }
+
+  .hint-bar { margin-top: 10px; background: rgba(74,157,124,.1); border: 1px solid rgba(74,157,124,.4); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--jade); line-height: 1.7; }
+
+  /* 一图看懂 modal */
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-mask.show { display: flex; }
+  .modal-box { background: #1a1622; border: 1px solid rgba(217,180,91,.4); border-radius: 14px; max-width: 92vw; max-height: 88vh; overflow: auto; padding: 14px; position: relative; }
+  .modal-box img { max-width: 100%; border-radius: 8px; display: block; }
+  .modal-box .m-title { color: var(--gold); font-family: "Kaiti SC", serif; text-align: center; margin-bottom: 10px; font-size: 15px; }
+  .modal-close { position: absolute; top: 8px; right: 12px; color: var(--dim); font-size: 20px; cursor: pointer; background: none; border: none; }
+
+  .toast { position: fixed; left: 50%; bottom: 28%; transform: translateX(-50%); background: rgba(14,11,20,.92); border: 1px solid var(--gold); color: var(--gold); padding: 10px 22px; border-radius: 30px; font-size: 14px; z-index: 99; display: none; }
+  .float-text { position: fixed; left: 50%; top: 30%; transform: translateX(-50%); font-family: "Kaiti SC", serif; font-size: 22px; color: var(--gold); pointer-events: none; z-index: 99; animation: floatUp 1.2s ease forwards; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div id="app">
+  <div class="topbar">
+    <button class="btn-back" onclick="location.href='index.html'">← 返回</button>
+    <h1 class="title-kai">顺序闯关</h1>
+    <span style="width:60px"></span>
+  </div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:10px">教材里必须按顺序记的流程，选择题最爱打乱了考——亲手排回去，多玩几次就都记住了。</div>
+  <div class="chips" id="chips"></div>
+  <div id="levelList" class="level-grid"></div>
+  <div class="game-card" id="gameCard">
+    <div class="game-head">
+      <div class="g-title" id="gTitle">选择一个关卡开始</div>
+      <div class="g-prog" id="gProg"></div>
+    </div>
+    <div class="game-meta" id="gMeta"></div>
+    <div id="gameBody"></div>
+  </div>
+</div>
+<div class="modal-mask" id="imgModal" onclick="this.classList.remove('show')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="document.getElementById('imgModal').classList.remove('show')">✕</button>
+    <div class="m-title" id="mTitle"></div>
+    <img id="mImg" src="" alt="一图看懂">
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="sort-questions.js"></script>
+<script>
+var QUESTIONS = window.SORT_QUESTIONS || [];
+var SAVE_KEY = "rk_sort_v2";
+var state = loadState();
+var cur = null;       // 当前关卡
+var curCat = "全部";  // 当前筛选章节
+
+function loadState() {
+  try { var s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.done) return s; } catch (e) {}
+  return { done: {}, best: {} };
+}
+function saveState() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {} }
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function shuffle(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function toast(msg) {
+  var t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._tm); t._tm = setTimeout(function(){ t.style.display="none"; }, 1500);
+}
+function floatText(msg, color) {
+  var d = document.createElement("div"); d.className = "float-text"; d.textContent = msg; d.style.color = color || "#d9b45b";
+  document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 1200);
+}
+var AC = null;
+function beep(f, d, ty, v) {
+  try {
+    if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)();
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = ty||"sine"; o.frequency.value = f;
+    g.gain.setValueAtTime(v||0.12, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+(d||0.15));
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+(d||0.15));
+  } catch(e) {}
+}
+function sndGood() { beep(660,.12); setTimeout(function(){beep(880,.15);},90); }
+function sndBad() { beep(200,.2,"sawtooth",.07); }
+function sndWin() { [523,659,784,1047].forEach(function(f,i){setTimeout(function(){beep(f,.18,"triangle",.12);},i*110);}); }
+
+/* 星空 */
+(function(){
+  var cv=$("stars"), ctx=cv.getContext("2d"), stars=[];
+  function rs(){ cv.width=innerWidth; cv.height=innerHeight; } rs(); addEventListener("resize",rs);
+  for(var i=0;i<60;i++) stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.3+.3,s:Math.random()*.5+.15,p:Math.random()*6.28});
+  (function dr(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    stars.forEach(function(st){ st.p+=st.s*.016; var a=.25+.35*Math.abs(Math.sin(st.p));
+      ctx.beginPath(); ctx.fillStyle="rgba(217,180,91,"+a+")"; ctx.arc(st.x*cv.width,st.y*cv.height,st.r,0,6.28); ctx.fill(); });
+    requestAnimationFrame(dr);
+  })();
+})();
+
+/* 章节chips + 关卡列表 */
+function renderChips() {
+  var cats = ["全部"];
+  QUESTIONS.forEach(function(q){ if (cats.indexOf(q.cat) === -1) cats.push(q.cat); });
+  var html = cats.map(function(c){
+    var n = c === "全部" ? QUESTIONS.length : QUESTIONS.filter(function(q){ return q.cat === c; }).length;
+    return '<button class="chip' + (curCat === c ? ' active' : '') + '" onclick="setCat(\'' + esc(c) + '\')">' + esc(c) + ' (' + n + ')</button>';
+  }).join("");
+  $("chips").innerHTML = html;
+}
+function setCat(c) {
+  curCat = c;
+  renderChips();
+  renderLevels();
+}
+function renderLevels() {
+  var list = curCat === "全部" ? QUESTIONS : QUESTIONS.filter(function(q){ return q.cat === curCat; });
+  var html = "";
+  list.forEach(function(q){
+    var done = state.done[q.id];
+    var active = cur && cur.q.id === q.id;
+    html += '<button class="level-btn' + (done ? ' done' : '') + (active ? ' active' : '') + '" onclick="startLevel(' + q.id + ')">' +
+      '<div class="lv-no"><span>' + q.cat.replace(/^第(\d+) 章.*/, "$1.") + ' 第 ' + q.id + ' 关</span><span>' + (state.best[q.id] ? '错' + state.best[q.id] : '') + '</span></div>' +
+      '<div class="lv-title">' + esc(q.title) + '</div>' +
+      (q.mnemonic ? '<div class="lv-hint">📜 ' + esc(q.mnemonic) + '</div>' : '') +
+      '</button>';
+  });
+  $("levelList").innerHTML = html;
+}
+
+/* 开始关卡 */
+function startLevel(id) {
+  var q = QUESTIONS.find(function(x){ return x.id === id; });
+  if (!q) return;
+  cur = { q: q, placed: 0, wrongCount: 0, hintUsed: false };
+  // 同步章节筛选
+  curCat = q.cat;
+  renderChips(); renderLevels();
+  renderGame();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderGame() {
+  var q = cur.q;
+  $("gTitle").textContent = q.title;
+  $("gProg").textContent = cur.placed + " / " + q.steps.length;
+  var meta = "";
+  if (q.mnemonic) meta += '<span class="mn">📜 ' + esc(q.mnemonic) + '</span>';
+  if (q.source) meta += '<span class="src">📖 ' + esc(q.source) + '</span>';
+  if (q.hint) meta += '<span class="src">💡 ' + esc(q.hint) + '</span>';
+  $("gMeta").innerHTML = meta;
+  // 流程图
+  var flow = "";
+  q.steps.forEach(function(s, i) {
+    if (i < cur.placed) {
+      flow += '<div class="flow-slot filled"><div class="slot-no">' + (i + 1) + '</div>' +
+        '<div class="slot-main"><div class="slot-name">' + esc(s.name) + '</div>' +
+        (s.cue ? '<div class="slot-cue">' + esc(s.cue) + '</div>' : '') + '</div>' +
+        (s.desc ? '<div class="slot-desc">' + esc(s.desc) + '</div>' : '') + '</div>';
+    } else if (i === cur.placed) {
+      flow += '<div class="flow-slot current"><div class="slot-no">' + (i + 1) + '</div>' +
+        '<div class="slot-main"><div class="slot-cue">' + (s.cue ? '💡 ' + esc(s.cue) : '轮到第 ' + (i+1) + ' 步') + '</div></div></div>';
+    } else {
+      flow += '<div class="flow-slot"><div class="slot-no">' + (i + 1) + '</div>' +
+        '<div class="slot-main"><div class="slot-cue">？</div></div></div>';
+    }
+  });
+  // 步骤积木（打乱剩余）
+  var remaining = q.steps.slice(cur.placed).map(function(s, i){ return { s: s, i: cur.placed + i }; });
+  remaining = shuffle(remaining);
+  var bricks = '<div class="bricks-label"><span>步骤积木</span><span>剩 ' + remaining.length + ' 块</span></div>' +
+    '<div class="bricks">' +
+    (remaining.length ? remaining.map(function(r){
+      return '<button class="brick" id="brick-' + r.i + '" onclick="pickBrick(' + r.i + ', this)">' +
+        '<div class="b-name">' + esc(r.s.name) + '</div>' +
+        (r.s.cue ? '<div class="b-cue">' + esc(r.s.cue) + '</div>' : '') +
+        (r.s.desc ? '<div class="b-desc">' + esc(r.s.desc) + '</div>' : '') + '</button>';
+    }).join("") : '') + '</div>';
+  // 提示条
+  var hintHtml = "";
+  if (cur.hintUsed && cur.placed < q.steps.length) {
+    var nxt = q.steps[cur.placed];
+    hintHtml = '<div class="hint-bar">💡 下一步：' + esc(nxt.name) + (nxt.cue ? '（' + esc(nxt.cue) + '）' : '') + '</div>';
+  }
+  // 控制按钮
+  var controls = '<div class="controls">' +
+    '<button class="ctrl" onclick="useHint()">💡 提示</button>' +
+    '<button class="ctrl jade" onclick="showAnswer()">📖 答案</button>' +
+    (q.image ? '<button class="ctrl" onclick="showImage()">🖼 一图看懂</button>' : '') +
+    '<button class="ctrl" onclick="startLevel(' + q.id + ')">🔁 再玩一次</button>' +
+    prevNextBtns() +
+    '</div>';
+  $("gameBody").innerHTML = '<div class="flow">' + flow + '</div>' + bricks + hintHtml + controls;
+}
+
+function prevNextBtns() {
+  var ids = QUESTIONS.map(function(x){ return x.id; });
+  var idx = ids.indexOf(cur.q.id);
+  var html = "";
+  if (idx > 0) html += '<button class="ctrl" onclick="goLevel(' + ids[idx-1] + ')">‹ 上一关</button>';
+  if (idx < ids.length - 1) html += '<button class="ctrl" onclick="goLevel(' + ids[idx+1] + ')">下一关 ›</button>';
+  return html;
+}
+function goLevel(id) { startLevel(id); }
+
+/* 点卡片 */
+function pickBrick(idx, el) {
+  var q = cur.q;
+  if (idx !== cur.placed) {
+    cur.wrongCount++;
+    el.classList.remove("wrong"); void el.offsetWidth; el.classList.add("wrong");
+    sndBad();
+    toast("顺序不对，再想想～");
+    setTimeout(function(){ el.classList.remove("wrong"); }, 450);
+    return;
+  }
+  sndGood();
+  cur.placed++;
+  el.classList.add("used");
+  floatText("✓ " + q.steps[idx].name, "#4a9d7c");
+  if (cur.placed >= q.steps.length) {
+    state.done[q.id] = true;
+    if (!state.best[q.id] || cur.wrongCount < state.best[q.id]) state.best[q.id] = cur.wrongCount;
+    saveState();
+    sndWin();
+    setTimeout(function(){
+      $("gameBody").innerHTML =
+        '<div class="win-box"><div class="win-big">🎉 通关成功！</div>' +
+        '<div class="win-sub">「' + esc(q.title) + '」已牢记' +
+        (cur.wrongCount > 0 ? '<br>本次排错 ' + cur.wrongCount + ' 次' : '<br>一次通过，真仙之姿！') +
+        (q.mnemonic ? '<br>📜 口诀：' + esc(q.mnemonic) : '') +
+        (state.best[q.id] !== undefined ? '<br>最佳纪录：' + state.best[q.id] + ' 次排错' : '') + '</div></div>' +
+        '<div class="controls">' +
+        '<button class="ctrl" onclick="startLevel(' + q.id + ')">🔁 再玩一次</button>' +
+        prevNextBtns() +
+        '</div>';
+      $("gProg").textContent = q.steps.length + " / " + q.steps.length;
+    }, 400);
+  } else {
+    renderGame();
+    renderLevels();
+  }
+}
+
+/* 提示 */
+function useHint() {
+  if (cur.placed >= cur.q.steps.length) return;
+  cur.hintUsed = true;
+  var el = $("brick-" + cur.placed);
+  if (el) {
+    el.classList.add("hint-glow");
+    setTimeout(function(){ el.classList.remove("hint-glow"); }, 2500);
+  }
+  renderGame(); // 显示提示条
+}
+
+/* 答案 */
+function showAnswer() {
+  var q = cur.q;
+  var flow = "";
+  q.steps.forEach(function(s, i){
+    flow += '<div class="flow-slot filled"><div class="slot-no">' + (i+1) + '</div>' +
+      '<div class="slot-main"><div class="slot-name">' + esc(s.name) + '</div>' +
+      (s.cue ? '<div class="slot-cue">' + esc(s.cue) + '</div>' : '') + '</div>' +
+      (s.desc ? '<div class="slot-desc">' + esc(s.desc) + '</div>' : '') + '</div>';
+  });
+  $("gameBody").innerHTML = '<div class="flow">' + flow + '</div>' +
+    '<div class="controls"><button class="ctrl" onclick="startLevel(' + q.id + ')">🔁 再玩一次</button>' + prevNextBtns() + '</div>';
+  $("gProg").textContent = q.steps.length + " / " + q.steps.length;
+}
+
+/* 一图看懂 */
+function showImage() {
+  var q = cur.q;
+  $("mTitle").textContent = q.title + ' · 一图看懂';
+  $("mImg").src = "images/" + q.image;
+  $("imgModal").classList.add("show");
+}
+
+renderChips();
+renderLevels();
+</script>
+</body>
+</html>

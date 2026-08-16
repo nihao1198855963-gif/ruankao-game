@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>软考修仙 · 开展节点闯关</title>
+<style>
+  :root { --ink:#0e0b14; --gold:#d9b45b; --cinnabar:#c0503c; --jade:#4a9d7c; --paper:#f0e6d0; --dim:#8a7f6a; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--ink); color:var(--paper); font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; overflow-x:hidden; }
+  #stars { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  #app { position:relative; z-index:1; max-width:640px; margin:0 auto; padding:14px 14px 50px; min-height:100vh; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  @keyframes pop { 0%{transform:scale(.85);opacity:.4} 100%{transform:scale(1);opacity:1} }
+  @keyframes floatUp { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-40px)} }
+  .title-kai { font-family:"Kaiti SC","STKaiti","KaiTi",serif; letter-spacing:2px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .btn-back { background:none; border:1px solid rgba(217,180,91,.4); color:var(--gold); border-radius:8px; padding:6px 14px; font-size:14px; cursor:pointer; font-family:inherit; }
+  .topbar h1 { font-size:19px; color:var(--gold); }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 2px 12px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex-shrink:0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--dim); border-radius:20px; padding:7px 13px; font-size:12.5px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .chip.active { background:rgba(217,180,91,.15); border-color:var(--gold); color:var(--gold); }
+  .chip.done { border-color:rgba(74,157,124,.5); color:var(--jade); }
+  .game-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:16px 14px; }
+  .game-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px; }
+  .g-title { font-family:"Kaiti SC",serif; font-size:19px; color:var(--gold); }
+  .g-prog { font-size:12px; color:var(--dim); }
+  /* 过程组桶 */
+  .buckets { display:flex; flex-direction:column; gap:8px; margin:10px 0 14px; }
+  .bucket { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.03); border:2px dashed rgba(255,255,255,.18); border-radius:12px; padding:10px 12px; min-height:48px; cursor:pointer; transition:all .2s; }
+  .bucket .b-no { width:26px; height:26px; border-radius:50%; background:rgba(217,180,91,.15); border:1px solid var(--gold); color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; font-family:"Kaiti SC",serif; }
+  .bucket .b-main { flex:1; }
+  .bucket .b-name { font-size:14px; font-weight:600; color:var(--paper); }
+  .bucket .b-mnemonic { font-size:10.5px; color:var(--dim); }
+  .bucket .b-count { font-size:11px; color:var(--dim); }
+  .bucket.over { border-color:var(--gold); background:rgba(217,180,91,.1); }
+  .bucket.over .b-no { background:var(--gold); color:var(--ink); }
+  .bucket .b-cards { display:flex; gap:6px; flex-wrap:wrap; width:100%; margin-top:6px; }
+  .bucket .placed-card { background:rgba(74,157,124,.15); border:1px solid rgba(74,157,124,.5); border-radius:8px; padding:4px 10px; font-size:11.5px; color:var(--paper); animation:pop .3s; }
+  /* 卡片区 */
+  .cards-label { display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-bottom:8px; }
+  .cards { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; min-height:40px; }
+  .card { background:linear-gradient(135deg, rgba(217,180,91,.16), rgba(255,255,255,.04)); border:1px solid rgba(217,180,91,.45); border-radius:10px; padding:9px 12px; cursor:pointer; font-family:inherit; color:var(--paper); text-align:left; transition:transform .12s; animation:pop .25s; }
+  .card:active { transform:scale(.95); }
+  .card .c-name { font-size:13.5px; font-weight:600; }
+  .card .c-kw { font-size:10.5px; color:var(--jade); margin-top:2px; }
+  .card.selected { border-color:var(--gold); box-shadow:0 0 12px rgba(217,180,91,.5); }
+  .card.wrong { animation:shake .4s; border-color:var(--cinnabar); }
+  .card.hint-glow { border-color:var(--jade); box-shadow:0 0 14px rgba(74,157,124,.7); }
+  .card.used { display:none; }
+  .controls { display:flex; gap:7px; flex-wrap:wrap; }
+  .ctrl { flex:1; min-width:70px; border-radius:10px; padding:11px 6px; font-size:13px; cursor:pointer; font-family:"Kaiti SC",serif; letter-spacing:1px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.05); color:var(--paper); }
+  .ctrl:active { transform:scale(.97); }
+  .ctrl.primary { background:linear-gradient(135deg,#a8873a,var(--gold)); color:var(--ink); border:none; font-weight:700; }
+  .hint-bar { margin-top:10px; background:rgba(74,157,124,.1); border:1px solid rgba(74,157,124,.4); border-radius:8px; padding:8px 12px; font-size:12px; color:var(--jade); line-height:1.7; }
+  .memory-box { margin-top:10px; background:rgba(217,180,91,.07); border:1px solid rgba(217,180,91,.3); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.9; color:var(--gold); font-family:"Kaiti SC",serif; }
+  .area-map { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
+  .area-btn { flex:1; min-width:74px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--dim); border-radius:10px; padding:9px 6px; cursor:pointer; font-family:inherit; font-size:12px; text-align:center; }
+  .area-btn.done { border-color:rgba(74,157,124,.55); color:var(--jade); }
+  .area-btn.active { border-color:var(--gold); color:var(--gold); background:rgba(217,180,91,.1); }
+  .area-map-label { font-size:11px; color:var(--dim); margin:14px 0 6px; }
+  .win-box { text-align:center; padding:20px 10px; }
+  .win-big { font-family:"Kaiti SC",serif; font-size:26px; color:var(--gold); letter-spacing:4px; animation:pop .5s; }
+  .win-sub { font-size:13px; color:var(--dim); margin-top:10px; line-height:1.9; }
+  .toast { position:fixed; left:50%; bottom:28%; transform:translateX(-50%); background:rgba(14,11,20,.92); border:1px solid var(--gold); color:var(--gold); padding:10px 22px; border-radius:30px; font-size:14px; z-index:99; display:none; }
+  .float-text { position:fixed; left:50%; top:30%; transform:translateX(-50%); font-family:"Kaiti SC",serif; font-size:22px; color:var(--gold); pointer-events:none; z-index:99; animation:floatUp 1.2s ease forwards; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div id="app">
+  <div class="topbar">
+    <button class="btn-back" onclick="location.href='index.html'">← 返回</button>
+    <h1 class="title-kai">开展节点闯关</h1>
+    <span style="width:60px"></span>
+  </div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:10px">49个过程 × 三种开展时点——考「XX过程什么时候开展」就靠这个。点卡片选中，再点它该去的时点，边玩边记。</div>
+  <div class="chips" id="chips"></div>
+  <div class="game-card">
+    <div class="game-head">
+      <div class="g-title" id="gTitle">选择一个领域</div>
+      <div class="g-prog" id="gProg"></div>
+    </div>
+    <div id="gameBody"></div>
+  </div>
+  <div class="area-map-label">十大领域地图 · <span id="mapProg">0/10 已通关</span></div>
+  <div class="area-map" id="areaMap"></div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="node-questions.js"></script>
+<script>
+var GROUPS = window.NODE_SLOTS || [];
+var AREAS = window.NODE_AREAS || [];
+var SAVE_KEY = "rk_node_v1";
+var state = loadState();
+var cur = null;        // {area, placed, wrongCount, selected}
+var curAreaKey = null;
+
+function loadState() { try { var s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.done) return s; } catch(e){} return { done:{} }; }
+function saveState() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){} }
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function shuffle(arr) { var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t; } return a; }
+function toast(msg) { var t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._tm); t._tm=setTimeout(function(){t.style.display="none";},1500); }
+function floatText(msg,color){ var d=document.createElement("div"); d.className="float-text"; d.textContent=msg; d.style.color=color||"#d9b45b"; document.body.appendChild(d); setTimeout(function(){d.remove();},1200); }
+var AC=null;
+function beep(f,d,ty,v){ try{ if(!AC) AC=new(window.AudioContext||window.webkitAudioContext)(); var o=AC.createOscillator(),g=AC.createGain(); o.type=ty||"sine"; o.frequency.value=f; g.gain.setValueAtTime(v||0.12,AC.currentTime); g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+(d||0.15)); o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+(d||0.15)); }catch(e){} }
+function sndGood(){ beep(660,.12); setTimeout(function(){beep(880,.15);},90); }
+function sndBad(){ beep(200,.2,"sawtooth",.07); }
+function sndWin(){ [523,659,784,1047].forEach(function(f,i){setTimeout(function(){beep(f,.18,"triangle",.12);},i*110);}); }
+
+(function(){
+  var cv=$("stars"),ctx=cv.getContext("2d"),stars=[];
+  function rs(){ cv.width=innerWidth; cv.height=innerHeight; } rs(); addEventListener("resize",rs);
+  for(var i=0;i<60;i++) stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.3+.3,s:Math.random()*.5+.15,p:Math.random()*6.28});
+  (function dr(){ ctx.clearRect(0,0,cv.width,cv.height); stars.forEach(function(st){ st.p+=st.s*.016; var a=.25+.35*Math.abs(Math.sin(st.p)); ctx.beginPath(); ctx.fillStyle="rgba(217,180,91,"+a+")"; ctx.arc(st.x*cv.width,st.y*cv.height,st.r,0,6.28); ctx.fill(); }); requestAnimationFrame(dr); })();
+})();
+
+function renderChips() {
+  $("chips").innerHTML = AREAS.map(function(a){
+    return '<button class="chip' + (curAreaKey===a.key?' active':'') + (state.done[a.key]?' done':'') + '" onclick="startArea(\'' + a.key + '\')">' + esc(a.name) + '</button>';
+  }).join("");
+}
+function renderMap() {
+  var doneN = AREAS.filter(function(a){ return state.done[a.key]; }).length;
+  $("mapProg").textContent = doneN + "/" + AREAS.length + " 已通关";
+  $("areaMap").innerHTML = AREAS.map(function(a){
+    return '<button class="area-btn' + (state.done[a.key]?' done':'') + (curAreaKey===a.key?' active':'') + '" onclick="startArea(\'' + a.key + '\')">' + esc(a.name.replace("管理","")) + (state.done[a.key]?' ✓':'') + '</button>';
+  }).join("") + '<button class="area-btn' + (state.done["ultimate"]?' done':'') + (curAreaKey==="ultimate"?' active':'') + '" onclick="startArea(\'ultimate\')">终极' + (state.done["ultimate"]?' ✓':'') + '</button>';
+}
+
+function startArea(key) {
+  curAreaKey = key;
+  if (key === "ultimate") {
+    // 终极：全部49过程混合
+    var cards = [];
+    AREAS.forEach(function(a){ a.cards.forEach(function(c){ cards.push({id:a.key+"-"+c.id, name:c.name, keywords:c.keywords, node:c.node}); }); });
+    cur = { ultimate: true, cards: cards, placed: 0, wrongCount: 0, selected: null };
+    renderUltimate();
+  } else {
+    var a = AREAS.find(function(x){ return x.key === key; });
+    if (!a) return;
+    cur = { area: a, placed: 0, wrongCount: 0, selected: null };
+    renderGame();
+  }
+  renderChips(); renderMap();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* 常规领域关卡 */
+function renderGame() {
+  var a = cur.area;
+  $("gTitle").textContent = a.name;
+  $("gProg").textContent = "正确 " + cur.placed + " / " + a.cards.length;
+  var placedIds = [];
+  var buckets = GROUPS.map(function(g){
+    var inBucket = a.cards.filter(function(c){ return c.node === g.key; });
+    var doneIn = a.cards.filter(function(c){ return c.node === g.key && placedIds.indexOf(c.id) === -1; });
+    return { g: g, total: inBucket.length };
+  });
+  // 已放置集合（按顺序从placedHistory取）
+  var placedCards = cur.placedHistory || [];
+  var bucketsHtml = GROUPS.map(function(g, gi){
+    var total = a.cards.filter(function(c){ return c.node === g.key; }).length;
+    var done = placedCards.filter(function(id){
+      var c = a.cards.find(function(x){ return x.id === id; });
+      return c && c.node === g.key;
+    });
+    return '<div class="bucket" id="bucket-' + gi + '" onclick="dropTo(' + gi + ')">' +
+      '<div class="b-no">' + (gi+1) + '</div>' +
+      '<div class="b-main"><div class="b-name">' + esc(g.name || g.key) + '</div><div class="b-mnemonic">' + esc(g.mnemonic) + '</div></div>' +
+      '<div class="b-count">' + done.length + ' / ' + total + '</div>' +
+      (done.length ? '<div class="b-cards">' + done.map(function(id){
+        var c = a.cards.find(function(x){ return x.id === id; });
+        return '<span class="placed-card">' + esc(c.name) + '</span>';
+      }).join("") + '</div>' : '') +
+      '</div>';
+  }).join("");
+  // 剩余卡片
+  var remaining = a.cards.filter(function(c){ return placedCards.indexOf(c.id) === -1; });
+  remaining = shuffle(remaining);
+  var cardsHtml = '<div class="cards-label"><span>待归类卡片</span><span>剩 ' + remaining.length + ' 张</span></div>' +
+    '<div class="cards">' +
+    (remaining.length ? remaining.map(function(c){
+      return '<button class="card' + (cur.selected===c.id?' selected':'') + '" id="card-' + c.id + '" onclick="pickCard(\'' + c.id + '\', this)">' +
+        '<div class="c-name">' + esc(c.name) + '</div><div class="c-kw">' + esc(c.keywords) + '</div></button>';
+    }).join("") : '<div style="color:var(--dim);font-size:13px;width:100%;text-align:center">全部归位！</div>') + '</div>';
+  var hintHtml = cur.hintUsed ? '<div class="hint-bar">💡 ' + esc(a.memory) + '</div>' : '';
+  var controls = '<div class="controls">' +
+    '<button class="ctrl" onclick="useHint()">💡 提示</button>' +
+    '<button class="ctrl" onclick="toggleMemory()">📜 口诀</button>' +
+    '<button class="ctrl" onclick="showAnswer()">📖 答案</button>' +
+    '<button class="ctrl" onclick="startArea(\'' + a.key + '\')">🔁 再玩一次</button>' +
+    '</div>';
+  $("gameBody").innerHTML = '<div class="buckets">' + bucketsHtml + '</div>' + cardsHtml + hintHtml + controls;
+}
+
+function pickCard(id, el) {
+  if (cur.selected === id) { cur.selected = null; renderGame(); return; }
+  cur.selected = id;
+  // 重新渲染选中态
+  var prev = document.querySelector(".card.selected");
+  if (prev) prev.classList.remove("selected");
+  el.classList.add("selected");
+  toast("已选中，点它该去的时点");
+}
+
+function dropTo(gi) {
+  if (!cur.selected) { toast("先点一张卡片"); return; }
+  var a = cur.area;
+  var card = a.cards.find(function(c){ return c.id === cur.selected; });
+  var g = GROUPS[gi];
+  if (card.node === g.key) {
+    sndGood();
+    cur.placedHistory = (cur.placedHistory || []).concat([card.id]);
+    cur.placed++;
+    cur.selected = null;
+    floatText("✓ " + card.name, "#4a9d7c");
+    if (cur.placed >= a.cards.length) {
+      state.done[a.key] = true; saveState(); sndWin();
+      setTimeout(function(){
+        $("gameBody").innerHTML =
+          '<div class="win-box"><div class="win-big">🎉 领域通关！</div>' +
+          '<div class="win-sub">「' + esc(a.name) + '」已牢记</div></div>' +
+          '<div class="memory-box">📜 ' + esc(a.memory) + '</div>' +
+          '<div class="controls" style="margin-top:12px"><button class="ctrl" onclick="nextArea()">下一领域 ➤</button></div>';
+        $("gProg").textContent = "正确 " + a.cards.length + " / " + a.cards.length;
+      }, 400);
+    } else {
+      renderGame();
+    }
+  } else {
+    sndBad();
+    cur.wrongCount++;
+    var el = $("card-" + card.id);
+    if (el) { el.classList.add("wrong"); setTimeout(function(){ el.classList.remove("wrong"); }, 450); }
+    toast("不对，「" + card.name + "」不在" + g.key + "时点");
+  }
+}
+
+function nextArea() {
+  var idx = AREAS.findIndex(function(x){ return x.key === cur.area.key; });
+  var next = AREAS[(idx + 1) % AREAS.length];
+  startArea(next.key);
+}
+
+function useHint() {
+  var a = cur.area;
+  if (cur.placed >= a.cards.length) return;
+  var remaining = a.cards.filter(function(c){ return (cur.placedHistory||[]).indexOf(c.id) === -1; });
+  var next = remaining[0];
+  if (next) {
+    var el = $("card-" + next.id);
+    if (el) { el.classList.add("hint-glow"); setTimeout(function(){ el.classList.remove("hint-glow"); }, 2500); }
+  }
+  cur.hintUsed = true;
+  renderGame();
+}
+function toggleMemory() {
+  var a = cur.area;
+  var mb = $("memoryBox");
+  if (mb) { mb.remove(); return; }
+  var d = document.createElement("div");
+  d.id = "memoryBox"; d.className = "memory-box";
+  d.innerHTML = "📜 " + esc(a.memory);
+  $("gameBody").appendChild(d);
+}
+function showAnswer() {
+  var a = cur.area;
+  var bucketsHtml = GROUPS.map(function(g, gi){
+    var inBucket = a.cards.filter(function(c){ return c.node === g.key; });
+    return '<div class="bucket" style="border-style:solid;border-color:rgba(74,157,124,.5)">' +
+      '<div class="b-no">' + (gi+1) + '</div>' +
+      '<div class="b-main"><div class="b-name">' + esc(g.name || g.key) + '</div></div>' +
+      '<div class="b-cards">' + inBucket.map(function(c){ return '<span class="placed-card">' + esc(c.name) + '</span>'; }).join("") + '</div></div>';
+  }).join("");
+  $("gameBody").innerHTML = '<div class="buckets">' + bucketsHtml + '</div>' +
+    '<div class="controls"><button class="ctrl" onclick="startArea(\'' + a.key + '\')">🔁 再玩一次</button></div>';
+  $("gProg").textContent = "答案";
+}
+
+/* 终极挑战：49过程混合 */
+function renderUltimate() {
+  $("gTitle").textContent = "终极挑战 · 全部 49 过程";
+  $("gProg").textContent = "正确 " + cur.placed + " / " + cur.cards.length;
+  var placedIds = cur.placedHistory || [];
+  var bucketsHtml = GROUPS.map(function(g, gi){
+    var total = cur.cards.filter(function(c){ return c.node === g.key; }).length;
+    var done = cur.cards.filter(function(c){ return placedIds.indexOf(c.id) !== -1 && c.node === g.key; });
+    return '<div class="bucket" id="ubucket-' + gi + '" onclick="udropTo(' + gi + ')">' +
+      '<div class="b-no">' + (gi+1) + '</div>' +
+      '<div class="b-main"><div class="b-name">' + esc(g.name || g.key) + '</div><div class="b-mnemonic">' + esc(g.mnemonic) + '</div></div>' +
+      '<div class="b-count">' + done.length + ' / ' + total + '</div></div>';
+  }).join("");
+  var remaining = cur.cards.filter(function(c){ return placedIds.indexOf(c.id) === -1; });
+  remaining = shuffle(remaining);
+  var cardsHtml = '<div class="cards-label"><span>待归类卡片</span><span>剩 ' + remaining.length + ' 张</span></div>' +
+    '<div class="cards">' +
+    (remaining.length ? remaining.map(function(c){
+      return '<button class="card" id="ucard-' + c.id + '" onclick="upick(\'' + c.id + '\', this)">' +
+        '<div class="c-name">' + esc(c.name) + '</div><div class="c-kw">' + esc(c.keywords) + '</div></button>';
+    }).join("") : '') + '</div>';
+  var controls = '<div class="controls">' +
+    '<button class="ctrl" onclick="uhint()">💡 提示</button>' +
+    '<button class="ctrl" onclick="uanswer()">📖 答案</button>' +
+    '<button class="ctrl" onclick="startArea(\'ultimate\')">🔁 再玩一次</button></div>';
+  $("gameBody").innerHTML = '<div class="buckets">' + bucketsHtml + '</div>' + cardsHtml + controls;
+}
+function upick(id, el) {
+  if (cur.selected === id) { cur.selected = null; document.querySelectorAll(".card.selected").forEach(function(x){x.classList.remove("selected");}); return; }
+  cur.selected = id;
+  document.querySelectorAll(".card.selected").forEach(function(x){x.classList.remove("selected");});
+  el.classList.add("selected");
+  toast("已选中，点它该去的时点");
+}
+function udropTo(gi) {
+  if (!cur.selected) { toast("先点一张卡片"); return; }
+  var card = cur.cards.find(function(c){ return c.id === cur.selected; });
+  var g = GROUPS[gi];
+  if (card.node === g.key) {
+    sndGood();
+    cur.placedHistory = (cur.placedHistory || []).concat([card.id]);
+    cur.placed++; cur.selected = null;
+    floatText("✓ " + card.name, "#4a9d7c");
+    if (cur.placed >= cur.cards.length) {
+      state.done["ultimate"] = true; saveState(); sndWin();
+      setTimeout(function(){
+        $("gameBody").innerHTML = '<div class="win-box"><div class="win-big">🎉 渡劫飞升！</div>' +
+          '<div class="win-sub">全部 49 个过程已归位<br>你就是项目管理真仙！</div></div>' +
+          '<div class="controls" style="margin-top:12px"><button class="ctrl primary" onclick="startArea(\'ultimate\')">再战终极 🔁</button></div>';
+        $("gProg").textContent = "49 / 49";
+      }, 400);
+    } else { renderUltimate(); }
+  } else {
+    sndBad(); cur.wrongCount++;
+    var el = $("ucard-" + card.id);
+    if (el) { el.classList.add("wrong"); setTimeout(function(){ el.classList.remove("wrong"); }, 450); }
+    toast("不对，「" + card.name + "」不在" + g.key + "时点");
+  }
+}
+function uhint() {
+  var remaining = cur.cards.filter(function(c){ return (cur.placedHistory||[]).indexOf(c.id) === -1; });
+  if (remaining.length) {
+    var el = $("ucard-" + remaining[0].id);
+    if (el) { el.classList.add("hint-glow"); setTimeout(function(){ el.classList.remove("hint-glow"); }, 2500); }
+  }
+}
+function uanswer() {
+  var bucketsHtml = GROUPS.map(function(g, gi){
+    var inBucket = cur.cards.filter(function(c){ return c.node === g.key; });
+    return '<div class="bucket" style="border-style:solid;border-color:rgba(74,157,124,.5)">' +
+      '<div class="b-no">' + (gi+1) + '</div><div class="b-main"><div class="b-name">' + esc(g.name || g.key) + '</div></div>' +
+      '<div class="b-cards">' + inBucket.map(function(c){ return '<span class="placed-card">' + esc(c.name) + '</span>'; }).join("") + '</div></div>';
+  }).join("");
+  $("gameBody").innerHTML = '<div class="buckets">' + bucketsHtml + '</div>' +
+    '<div class="controls"><button class="ctrl" onclick="startArea(\'ultimate\')">🔁 再玩一次</button></div>';
+  $("gProg").textContent = "答案";
+}
+
+renderChips();
+renderMap();
+</script>
+</body>
+</html>

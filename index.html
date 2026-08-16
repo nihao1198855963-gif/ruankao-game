@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>软考修仙 · 冲刺工具</title>
+<style>
+  :root {
+    --ink: #0e0b14; --gold: #d9b45b; --cinnabar: #c0503c; --jade: #4a9d7c;
+    --paper: #f0e6d0; --dim: #8a7f6a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--ink); color: var(--paper); font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; overflow-x: hidden; }
+  #stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  #app { position: relative; z-index: 1; max-width: 580px; margin: 0 auto; padding: 30px 16px 50px; min-height: 100vh; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .hero { text-align: center; padding: 14px 0 8px; }
+  .hero .realm { font-family: "Kaiti SC", "STKaiti", "KaiTi", serif; font-size: 36px; color: var(--gold); text-shadow: 0 0 20px rgba(217,180,91,.5); letter-spacing: 6px; }
+  .hero .subtitle { font-size: 12px; color: var(--dim); margin-top: 8px; letter-spacing: 1px; line-height: 1.8; }
+
+  .menu { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
+  .menu-item { display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, rgba(217,180,91,.12), rgba(255,255,255,.03)); border: 1px solid rgba(217,180,91,.3); border-radius: 14px; padding: 18px 16px; cursor: pointer; transition: transform .15s; }
+  .menu-item:active { transform: scale(.98); }
+  .menu-item .icon { font-size: 30px; width: 48px; text-align: center; flex-shrink: 0; }
+  .menu-item .name { font-size: 17px; font-family: "Kaiti SC", serif; letter-spacing: 1px; color: var(--paper); }
+  .menu-item .desc { font-size: 11.5px; color: var(--dim); margin-top: 4px; line-height: 1.6; }
+  .menu-item .go { margin-left: auto; color: var(--gold); font-size: 20px; }
+
+  .footer { text-align: center; font-size: 11px; color: var(--dim); margin-top: 30px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div id="app">
+  <div class="hero">
+    <div class="realm">软考修仙</div>
+    <div class="subtitle">系统集成项目管理工程师 · 综合知识冲刺工具<br>理解知识点才是王道，边玩边记</div>
+  </div>
+  <div class="menu">
+    <div class="menu-item" onclick="location.href='sort-game.html'">
+      <div class="icon">🧩</div>
+      <div><div class="name">顺序闯关</div><div class="desc">66关：流程步骤打乱，亲手排回去（生命周期/过程/演进）</div></div>
+      <div class="go">›</div>
+    </div>
+    <div class="menu-item" onclick="location.href='process-sort.html'">
+      <div class="icon">🏯</div>
+      <div><div class="name">过程组闯关</div><div class="desc">十大领域 × 五大过程组，49个过程卡片归位 + 终极挑战</div></div>
+      <div class="go">›</div>
+    </div>
+    <div class="menu-item" onclick="location.href='itto-sort.html'">
+      <div class="icon">📦</div>
+      <div><div class="name">输入输出闯关</div><div class="desc">49个过程的「输入→工具与技术→输出」三件套</div></div>
+      <div class="go">›</div>
+    </div>
+    <div class="menu-item" onclick="location.href='node-sort.html'">
+      <div class="icon">⏱️</div>
+      <div><div class="name">开展节点闯关</div><div class="desc">49个过程 × 三种开展时点：仅一次/贯穿全程/定期</div></div>
+      <div class="go">›</div>
+    </div>
+    <div class="menu-item" onclick="openCompare()">
+      <div class="icon">⚖️</div>
+      <div><div class="name">易混辨析</div><div class="desc">23组成对对比：赶工vs快速跟进、增量vs差分备份…</div></div>
+      <div class="go">›</div>
+    </div>
+    <div class="menu-item" onclick="openTips()">
+      <div class="icon">📜</div>
+      <div><div class="name">口诀速记</div><div class="desc">90条口诀翻卡速记，考前一扫全带走</div></div>
+      <div class="go">›</div>
+    </div>
+  </div>
+  <div class="footer">数据来源：《综合知识》一本通 + 官方教材 · 无选择题，理解为王</div>
+</div>
+<div id="screen-compare" class="screen" style="display:none"></div>
+<div id="screen-tips" class="screen" style="display:none"></div>
+<div id="toast" class="toast" style="position:fixed;left:50%;bottom:28%;transform:translateX(-50%);background:rgba(14,11,20,.92);border:1px solid var(--gold);color:var(--gold);padding:10px 22px;border-radius:30px;font-size:14px;z-index:99;display:none;font-family:'Kaiti SC',serif"></div>
+
+<script src="knowledge.js"></script>
+<script>
+var KNOWLEDGE = window.KNOWLEDGE || [];
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function toast(msg) { var t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._tm); t._tm=setTimeout(function(){t.style.display="none";},1500); }
+
+/* 星空 */
+(function(){
+  var cv=$("stars"), ctx=cv.getContext("2d"), stars=[];
+  function rs(){ cv.width=innerWidth; cv.height=innerHeight; } rs(); addEventListener("resize",rs);
+  for(var i=0;i<70;i++) stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.3,s:Math.random()*.5+.15,p:Math.random()*6.28});
+  (function dr(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    stars.forEach(function(st){ st.p+=st.s*.016; var a=.25+.35*Math.abs(Math.sin(st.p));
+      ctx.beginPath(); ctx.fillStyle="rgba(217,180,91,"+a+")"; ctx.arc(st.x*cv.width,st.y*cv.height,st.r,0,6.28); ctx.fill(); });
+    requestAnimationFrame(dr);
+  })();
+})();
+
+/* 页面切换 */
+var allScreens = document.querySelectorAll(".screen");
+function showScreen(id) {
+  allScreens.forEach(function(s){ s.style.display = "none"; });
+  var sc = $(id);
+  if (sc) {
+    sc.style.display = "block";
+    sc.style.position = "fixed";
+    sc.style.inset = "0";
+    sc.style.background = "var(--ink)";
+    sc.style.zIndex = "10";
+    sc.style.overflowY = "auto";
+    sc.style.padding = "16px 14px 50px";
+    sc.style.maxWidth = "580px";
+    sc.style.margin = "0 auto";
+  }
+  window.scrollTo(0,0);
+}
+function goHome() {
+  allScreens.forEach(function(s){ s.style.display = "none"; });
+  window.scrollTo(0,0);
+}
+
+/* 易混辨析 */
+function openCompare() {
+  var cmp = [];
+  KNOWLEDGE.forEach(function(c){ (c.compares || []).forEach(function(x){ cmp.push(x); }); });
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+    '<button class="btn-back" onclick="goHome()" style="background:none;border:1px solid rgba(217,180,91,.4);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit">← 返回</button>' +
+    '<h2 style="font-size:17px;color:var(--gold);font-family:\'Kaiti SC\',serif">易混辨析</h2><span style="width:60px"></span></div>';
+  if (!cmp.length) {
+    html += '<div style="text-align:center;color:var(--dim);padding:50px 20px;font-size:14px;line-height:2">⚖️ 暂无辨析数据</div>';
+  } else {
+    html += '<div style="font-size:12px;color:var(--dim);margin-bottom:12px">共 ' + cmp.length + ' 组高频易混对比 · 一眼分清坑</div>';
+    cmp.forEach(function(x) {
+      html += '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px 16px;margin-bottom:10px">' +
+        '<div style="font-size:15px;font-weight:600;color:var(--gold);margin-bottom:10px">⚖️ ' + esc(x.title) + '</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<tr><th style="border:1px solid rgba(255,255,255,.12);padding:8px 10px;text-align:left;background:rgba(217,180,91,.1);color:var(--gold)">' + esc(x.a) + '</th>' +
+        '<th style="border:1px solid rgba(255,255,255,.12);padding:8px 10px;text-align:left;background:rgba(217,180,91,.1);color:var(--gold)">' + esc(x.b) + '</th></tr>' +
+        '<tr><td style="border:1px solid rgba(255,255,255,.12);padding:8px 10px;line-height:1.6">' + esc(x.aDesc) + '</td>' +
+        '<td style="border:1px solid rgba(255,255,255,.12);padding:8px 10px;line-height:1.6">' + esc(x.bDesc) + '</td></tr>' +
+        (x.mnemonic ? '<tr><td colspan="2" style="border:1px solid rgba(255,255,255,.12);padding:8px 10px;color:var(--gold);font-family:\'Kaiti SC\',serif">📜 ' + esc(x.mnemonic) + '</td></tr>' : '') +
+        '</table></div>';
+    });
+  }
+  $("screen-compare").innerHTML = html;
+  showScreen("screen-compare");
+}
+
+/* 口诀速记 */
+function openTips() {
+  var tips = [];
+  KNOWLEDGE.forEach(function(c){ (c.points || []).forEach(function(p){ if (p.mnemonic) tips.push({ m: p.mnemonic, t: p.title, cat: c.cat }); }); });
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+    '<button class="btn-back" onclick="goHome()" style="background:none;border:1px solid rgba(217,180,91,.4);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit">← 返回</button>' +
+    '<h2 style="font-size:17px;color:var(--gold);font-family:\'Kaiti SC\',serif">口诀速记</h2><span style="width:60px"></span></div>';
+  if (!tips.length) {
+    html += '<div style="text-align:center;color:var(--dim);padding:50px 20px;font-size:14px;line-height:2">📜 暂无口诀</div>';
+  } else {
+    html += '<div style="font-size:12px;color:var(--dim);margin-bottom:12px">共 ' + tips.length + ' 条口诀 · 点击卡片翻面看考点</div>';
+    tips.forEach(function(t) {
+      html += '<div class="tip-card" onclick="this.classList.toggle(\'flipped\')" style="background:rgba(255,255,255,.05);border:1px solid rgba(217,180,91,.3);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;position:relative">' +
+        '<div style="position:absolute;top:8px;right:10px;font-size:10px;color:var(--dim)">翻面</div>' +
+        '<div class="tip-front" style="font-family:\'Kaiti SC\',serif;color:var(--gold);font-size:14px">📜 ' + esc(t.m) + '</div>' +
+        '<div class="tip-back" style="display:none;font-size:12px;color:var(--dim);margin-top:8px;line-height:1.7;border-top:1px dashed rgba(255,255,255,.15);padding-top:8px">【' + esc(t.cat) + '】' + esc(t.t) + '</div></div>';
+    });
+  }
+  $("screen-tips").innerHTML = html;
+  showScreen("screen-tips");
+}
+</script>
+</body>
+</html>

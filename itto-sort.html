@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>软考修仙 · 输入输出闯关</title>
+<style>
+  :root { --ink:#0e0b14; --gold:#d9b45b; --cinnabar:#c0503c; --jade:#4a9d7c; --paper:#f0e6d0; --dim:#8a7f6a; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--ink); color:var(--paper); font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; overflow-x:hidden; }
+  #stars { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  #app { position:relative; z-index:1; max-width:640px; margin:0 auto; padding:14px 14px 50px; min-height:100vh; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  @keyframes pop { 0%{transform:scale(.85);opacity:.4} 100%{transform:scale(1);opacity:1} }
+  @keyframes floatUp { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-40px)} }
+  .title-kai { font-family:"Kaiti SC","STKaiti","KaiTi",serif; letter-spacing:2px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .btn-back { background:none; border:1px solid rgba(217,180,91,.4); color:var(--gold); border-radius:8px; padding:6px 14px; font-size:14px; cursor:pointer; font-family:inherit; }
+  .topbar h1 { font-size:19px; color:var(--gold); }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 2px 10px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex-shrink:0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--dim); border-radius:20px; padding:7px 13px; font-size:12.5px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .chip.active { background:rgba(217,180,91,.15); border-color:var(--gold); color:var(--gold); }
+  /* 过程关卡列表 */
+  .level-list { display:flex; gap:7px; overflow-x:auto; padding:2px 2px 12px; scrollbar-width:none; }
+  .level-list::-webkit-scrollbar { display:none; }
+  .lvl { flex-shrink:0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--dim); border-radius:10px; padding:8px 12px; font-size:12px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .lvl.active { border-color:var(--gold); color:var(--gold); background:rgba(217,180,91,.1); }
+  .lvl.done { border-color:rgba(74,157,124,.5); color:var(--jade); }
+  .game-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:16px 14px; }
+  .game-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .g-title { font-family:"Kaiti SC",serif; font-size:19px; color:var(--gold); }
+  .g-prog { font-size:12px; color:var(--dim); }
+  .g-group { display:inline-block; font-size:10.5px; background:rgba(217,180,91,.1); border:1px solid rgba(217,180,91,.3); color:var(--gold); border-radius:6px; padding:2px 8px; margin:4px 0 10px; }
+  /* 分类桶 */
+  .slots { display:flex; flex-direction:column; gap:8px; margin:8px 0 14px; }
+  .slot { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.03); border:2px dashed rgba(255,255,255,.18); border-radius:12px; padding:10px 12px; min-height:46px; cursor:pointer; transition:all .2s; }
+  .slot .s-no { width:26px; height:26px; border-radius:50%; background:rgba(74,157,124,.15); border:1px solid var(--jade); color:var(--jade); display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+  .slot .s-main { flex:1; }
+  .slot .s-name { font-size:14px; font-weight:600; }
+  .slot .s-mnemonic { font-size:10.5px; color:var(--dim); }
+  .slot .s-count { font-size:11px; color:var(--dim); }
+  .slot.over { border-color:var(--jade); background:rgba(74,157,124,.08); }
+  .slot .s-cards { display:flex; gap:6px; flex-wrap:wrap; width:100%; margin-top:6px; }
+  .slot .placed-card { background:rgba(74,157,124,.15); border:1px solid rgba(74,157,124,.5); border-radius:8px; padding:4px 10px; font-size:11.5px; color:var(--paper); animation:pop .3s; }
+  .slot .placed-card.star { background:rgba(217,180,91,.15); border-color:var(--gold); color:var(--gold); }
+  .cards-label { display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-bottom:8px; }
+  .cards { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; min-height:40px; }
+  .card { background:linear-gradient(135deg, rgba(217,180,91,.16), rgba(255,255,255,.04)); border:1px solid rgba(217,180,91,.45); border-radius:10px; padding:9px 12px; cursor:pointer; font-family:inherit; color:var(--paper); text-align:left; transition:transform .12s; animation:pop .25s; max-width:100%; }
+  .card:active { transform:scale(.95); }
+  .card .c-name { font-size:13.5px; font-weight:600; }
+  .card .c-kw { font-size:10.5px; color:var(--jade); margin-top:2px; }
+  .card .c-sub { font-size:10px; color:var(--dim); margin-top:1px; }
+  .card.selected { border-color:var(--gold); box-shadow:0 0 12px rgba(217,180,91,.5); }
+  .card.wrong { animation:shake .4s; border-color:var(--cinnabar); }
+  .card.hint-glow { border-color:var(--jade); box-shadow:0 0 14px rgba(74,157,124,.7); }
+  .card.used { display:none; }
+  .controls { display:flex; gap:7px; flex-wrap:wrap; }
+  .ctrl { flex:1; min-width:70px; border-radius:10px; padding:11px 6px; font-size:13px; cursor:pointer; font-family:"Kaiti SC",serif; letter-spacing:1px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.05); color:var(--paper); }
+  .ctrl:active { transform:scale(.97); }
+  .ctrl.primary { background:linear-gradient(135deg,#a8873a,var(--gold)); color:var(--ink); border:none; font-weight:700; }
+  .hint-bar { margin-top:10px; background:rgba(74,157,124,.1); border:1px solid rgba(74,157,124,.4); border-radius:8px; padding:8px 12px; font-size:12px; color:var(--jade); line-height:1.7; }
+  .win-box { text-align:center; padding:20px 10px; }
+  .win-big { font-family:"Kaiti SC",serif; font-size:26px; color:var(--gold); letter-spacing:4px; animation:pop .5s; }
+  .win-sub { font-size:13px; color:var(--dim); margin-top:10px; line-height:1.9; }
+  .toast { position:fixed; left:50%; bottom:28%; transform:translateX(-50%); background:rgba(14,11,20,.92); border:1px solid var(--gold); color:var(--gold); padding:10px 22px; border-radius:30px; font-size:14px; z-index:99; display:none; }
+  .float-text { position:fixed; left:50%; top:30%; transform:translateX(-50%); font-family:"Kaiti SC",serif; font-size:22px; color:var(--gold); pointer-events:none; z-index:99; animation:floatUp 1.2s ease forwards; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div id="app">
+  <div class="topbar">
+    <button class="btn-back" onclick="location.href='index.html'">← 返回</button>
+    <h1 class="title-kai">输入输出闯关</h1>
+    <span style="width:60px"></span>
+  </div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:10px">十大领域核心过程的「输入 → 工具与技术 → 输出」三件套，点卡片选中，再点它该去的分类，多玩几关就会发现窍门。</div>
+  <div class="chips" id="chips"></div>
+  <div class="level-list" id="levelList"></div>
+  <div class="game-card">
+    <div class="game-head">
+      <div class="g-title" id="gTitle">选择一个过程</div>
+      <div class="g-prog" id="gProg"></div>
+    </div>
+    <div id="gGroup"></div>
+    <div id="gameBody"></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="itto-questions.js"></script>
+<script>
+var SLOTS = window.ITTO_SLOTS || [];
+var LEVELS = window.ITTO_LEVELS || [];
+var SAVE_KEY = "rk_itto_v1";
+var state = loadState();
+var cur = null;             // {level, placed, wrongCount, selected}
+var curArea = null;         // 当前领域筛选
+
+var AREAS = ["整合管理","范围管理","进度管理","成本管理","质量管理","资源管理","沟通管理","风险管理","采购管理","干系人管理"];
+
+function loadState() { try { var s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.done) return s; } catch(e){} return { done:{} }; }
+function saveState() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){} }
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function shuffle(arr) { var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t; } return a; }
+function toast(msg) { var t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._tm); t._tm=setTimeout(function(){t.style.display="none";},1500); }
+function floatText(msg,color){ var d=document.createElement("div"); d.className="float-text"; d.textContent=msg; d.style.color=color||"#d9b45b"; document.body.appendChild(d); setTimeout(function(){d.remove();},1200); }
+var AC=null;
+function beep(f,d,ty,v){ try{ if(!AC) AC=new(window.AudioContext||window.webkitAudioContext)(); var o=AC.createOscillator(),g=AC.createGain(); o.type=ty||"sine"; o.frequency.value=f; g.gain.setValueAtTime(v||0.12,AC.currentTime); g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+(d||0.15)); o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+(d||0.15)); }catch(e){} }
+function sndGood(){ beep(660,.12); setTimeout(function(){beep(880,.15);},90); }
+function sndBad(){ beep(200,.2,"sawtooth",.07); }
+function sndWin(){ [523,659,784,1047].forEach(function(f,i){setTimeout(function(){beep(f,.18,"triangle",.12);},i*110);}); }
+
+(function(){
+  var cv=$("stars"),ctx=cv.getContext("2d"),stars=[];
+  function rs(){ cv.width=innerWidth; cv.height=innerHeight; } rs(); addEventListener("resize",rs);
+  for(var i=0;i<60;i++) stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.3+.3,s:Math.random()*.5+.15,p:Math.random()*6.28});
+  (function dr(){ ctx.clearRect(0,0,cv.width,cv.height); stars.forEach(function(st){ st.p+=st.s*.016; var a=.25+.35*Math.abs(Math.sin(st.p)); ctx.beginPath(); ctx.fillStyle="rgba(217,180,91,"+a+")"; ctx.arc(st.x*cv.width,st.y*cv.height,st.r,0,6.28); ctx.fill(); }); requestAnimationFrame(dr); })();
+})();
+
+function renderChips() {
+  $("chips").innerHTML = AREAS.map(function(a){
+    return '<button class="chip' + (curArea===a?' active':'') + '" onclick="setArea(\'' + a + '\')">' + esc(a) + '</button>';
+  }).join("");
+}
+function setArea(a) {
+  curArea = a;
+  renderChips(); renderLevels();
+  var lvls = LEVELS.filter(function(l){ return l.area === a; });
+  if (lvls.length) startLevel(lvls[0].key);
+}
+function renderLevels() {
+  var list = curArea ? LEVELS.filter(function(l){ return l.area === curArea; }) : LEVELS;
+  $("levelList").innerHTML = list.map(function(l){
+    return '<button class="lvl' + (cur && cur.level.key===l.key?' active':'') + (state.done[l.key]?' done':'') + '" onclick="startLevel(\'' + l.key + '\')">' + esc(l.name) + '</button>';
+  }).join("");
+}
+
+function startLevel(key) {
+  var l = LEVELS.find(function(x){ return x.key === key; });
+  if (!l) return;
+  cur = { level: l, placed: 0, wrongCount: 0, selected: null };
+  if (!curArea) curArea = l.area;
+  renderChips(); renderLevels();
+  renderGame();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderGame() {
+  var l = cur.level;
+  $("gTitle").textContent = l.name;
+  $("gProg").textContent = "正确 " + cur.placed + " / " + l.cards.length;
+  $("gGroup").innerHTML = '<span class="g-group">' + esc(l.group) + '过程组 · ' + esc(l.area) + '</span>';
+  var placedIds = cur.placedHistory || [];
+  // 三个分类桶
+  var slotsHtml = SLOTS.map(function(s, si){
+    var total = l.cards.filter(function(c){ return c.slot === s.key; }).length;
+    var done = l.cards.filter(function(c){ return placedIds.indexOf(c.id) !== -1 && c.slot === s.key; });
+    return '<div class="slot" id="slot-' + si + '" onclick="dropTo(' + si + ')">' +
+      '<div class="s-no">' + (si+1) + '</div>' +
+      '<div class="s-main"><div class="s-name">' + esc(s.key) + '</div><div class="s-mnemonic">' + esc(s.mnemonic) + '</div></div>' +
+      '<div class="s-count">' + done.length + ' / ' + total + '</div>' +
+      (done.length ? '<div class="s-cards">' + done.map(function(c){
+        return '<span class="placed-card' + (c.star?' star':'') + '">' + esc(c.name) + (c.star?' ★':'') + '</span>';
+      }).join("") + '</div>' : '') +
+      '</div>';
+  }).join("");
+  // 剩余卡片
+  var remaining = l.cards.filter(function(c){ return placedIds.indexOf(c.id) === -1; });
+  remaining = shuffle(remaining);
+  var cardsHtml = '<div class="cards-label"><span>待归类卡片</span><span>剩 ' + remaining.length + ' 张</span></div>' +
+    '<div class="cards">' +
+    (remaining.length ? remaining.map(function(c){
+      return '<button class="card' + (cur.selected===c.id?' selected':'') + '" id="card-' + c.id + '" onclick="pickCard(\'' + c.id + '\', this)">' +
+        '<div class="c-name">' + esc(c.name) + (c.star?' ★':'') + '</div>' +
+        (c.keywords ? '<div class="c-kw">' + esc(c.keywords) + '</div>' : '') +
+        (c.sub && c.sub.length ? '<div class="c-sub">' + esc(c.sub.join("、")) + '</div>' : '') +
+        '</button>';
+    }).join("") : '<div style="color:var(--dim);font-size:13px;width:100%;text-align:center">全部归位！</div>') + '</div>';
+  var hintHtml = cur.hintUsed ? '<div class="hint-bar">💡 小窍门：输入=原料、工具=手段、输出=成果。★是本过程的招牌产出（输出）。</div>' : '';
+  var controls = '<div class="controls">' +
+    '<button class="ctrl" onclick="useHint()">💡 提示</button>' +
+    '<button class="ctrl" onclick="showAnswer()">📖 答案</button>' +
+    '<button class="ctrl" onclick="startLevel(\'' + l.key + '\')">🔁 再玩一次</button>' +
+    prevNextBtns() +
+    '</div>';
+  $("gameBody").innerHTML = '<div class="slots">' + slotsHtml + '</div>' + cardsHtml + hintHtml + controls;
+}
+
+function prevNextBtns() {
+  var list = LEVELS.filter(function(x){ return x.area === cur.level.area; });
+  var idx = list.findIndex(function(x){ return x.key === cur.level.key; });
+  var html = "";
+  if (idx > 0) html += '<button class="ctrl" onclick="startLevel(\'' + list[idx-1].key + '\')">‹ 上一关</button>';
+  if (idx < list.length - 1) html += '<button class="ctrl" onclick="startLevel(\'' + list[idx+1].key + '\')">下一关 ›</button>';
+  return html;
+}
+
+function pickCard(id, el) {
+  if (cur.selected === id) { cur.selected = null; renderGame(); return; }
+  cur.selected = id;
+  document.querySelectorAll(".card.selected").forEach(function(x){ x.classList.remove("selected"); });
+  el.classList.add("selected");
+  toast("已选中，点它该去的分类");
+}
+
+function dropTo(si) {
+  if (!cur.selected) { toast("先点一张卡片"); return; }
+  var l = cur.level;
+  var card = l.cards.find(function(c){ return c.id === cur.selected; });
+  var slot = SLOTS[si];
+  if (card.slot === slot.key) {
+    sndGood();
+    cur.placedHistory = (cur.placedHistory || []).concat([card.id]);
+    cur.placed++; cur.selected = null;
+    floatText("✓ " + card.name, "#4a9d7c");
+    if (cur.placed >= l.cards.length) {
+      state.done[l.key] = true; saveState(); sndWin();
+      setTimeout(function(){
+        $("gameBody").innerHTML =
+          '<div class="win-box"><div class="win-big">🎉 通关成功！</div>' +
+          '<div class="win-sub">「' + esc(l.name) + '」的三件套已牢记</div></div>' +
+          '<div class="controls" style="margin-top:12px"><button class="ctrl" onclick="startLevel(\'' + l.key + '\')">🔁 再玩一次</button>' + prevNextBtns() + '</div>';
+        $("gProg").textContent = l.cards.length + " / " + l.cards.length;
+      }, 400);
+    } else { renderGame(); }
+  } else {
+    sndBad(); cur.wrongCount++;
+    var el = $("card-" + card.id);
+    if (el) { el.classList.add("wrong"); setTimeout(function(){ el.classList.remove("wrong"); }, 450); }
+    toast("不对，「" + card.name + "」不是" + slot.key);
+  }
+}
+
+function useHint() {
+  if (cur.placed >= cur.level.cards.length) return;
+  var remaining = cur.level.cards.filter(function(c){ return (cur.placedHistory||[]).indexOf(c.id) === -1; });
+  if (remaining.length) {
+    var el = $("card-" + remaining[0].id);
+    if (el) { el.classList.add("hint-glow"); setTimeout(function(){ el.classList.remove("hint-glow"); }, 2500); }
+  }
+  cur.hintUsed = true;
+  renderGame();
+}
+function showAnswer() {
+  var l = cur.level;
+  var slotsHtml = SLOTS.map(function(s, si){
+    var inSlot = l.cards.filter(function(c){ return c.slot === s.key; });
+    return '<div class="slot" style="border-style:solid;border-color:rgba(74,157,124,.5)">' +
+      '<div class="s-no">' + (si+1) + '</div><div class="s-main"><div class="s-name">' + esc(s.key) + '</div></div>' +
+      '<div class="s-cards">' + inSlot.map(function(c){ return '<span class="placed-card' + (c.star?' star':'') + '">' + esc(c.name) + (c.star?' ★':'') + '</span>'; }).join("") + '</div></div>';
+  }).join("");
+  $("gameBody").innerHTML = '<div class="slots">' + slotsHtml + '</div>' +
+    '<div class="controls"><button class="ctrl" onclick="startLevel(\'' + l.key + '\')">🔁 再玩一次</button>' + prevNextBtns() + '</div>';
+  $("gProg").textContent = "答案";
+}
+
+renderChips();
+renderLevels();
+</script>
+</body>
+</html>
