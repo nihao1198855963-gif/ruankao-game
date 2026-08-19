@@ -121,6 +121,7 @@
 <div id="screen-boss" class="screen" style="display:none"></div>
 <div id="screen-evm" class="screen" style="display:none"></div>
 <div id="screen-duel" class="screen" style="display:none"></div>
+<div id="screen-learn" class="screen" style="display:none"></div>
 <div id="screen-knowledge" class="screen" style="display:none"></div>
 <div id="screen-compare" class="screen" style="display:none"></div>
 <div id="screen-tips" class="screen" style="display:none"></div>
@@ -177,19 +178,29 @@ function openKnowledge() {
     '<button class="btn-back" onclick="goHome()" style="background:none;border:1px solid rgba(217,180,91,.4);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit">← 返回</button>' +
     '<h2 style="font-size:17px;color:var(--gold);font-family:\'Kaiti SC\',serif">考点库</h2><span style="width:60px"></span></div>' +
     '<div style="display:flex;gap:8px;margin-bottom:12px">' +
-    '<button id="kd-tab-game" onclick="kdTab(\'game\')" style="flex:1;background:rgba(217,180,91,.15);border:1px solid rgba(217,180,91,.5);color:var(--gold);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">🎮 挖空闯关</button>' +
-    '<button id="kd-tab-browse" onclick="kdTab(\'browse\')" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">📖 全览搜索</button>' +
+    '<button id="kd-tab-kd" onclick="kdTab(\'kd\')" style="flex:1;background:rgba(217,180,91,.15);border:1px solid rgba(217,180,91,.5);color:var(--gold);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">📖 教材考点</button>' +
+    '<button id="kd-tab-game" onclick="kdTab(\'game\')" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">🎮 挖空闯关</button>' +
+    '<button id="kd-tab-browse" onclick="kdTab(\'browse\')" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">🔍 全览搜索</button>' +
     '</div><div id="kd-body"></div>';
   $("screen-knowledge").innerHTML = html;
-  kdTab("game");
+  kdTab("kd");
   showScreen("screen-knowledge");
 }
 function kdTab(t) {
-  var g = $("kd-tab-game"), b = $("kd-tab-browse");
+  var tabs = { kd: "kd-tab-kd", game: "kd-tab-game", browse: "kd-tab-browse" };
   var on = "rgba(217,180,91,.15)", off = "rgba(255,255,255,.04)";
-  if (g) { g.style.background = t === "game" ? on : off; g.style.color = t === "game" ? "var(--gold)" : "var(--dim)"; g.style.borderColor = t === "game" ? "rgba(217,180,91,.5)" : "rgba(255,255,255,.12)"; }
-  if (b) { b.style.background = t === "browse" ? on : off; b.style.color = t === "browse" ? "var(--gold)" : "var(--dim)"; b.style.borderColor = t === "browse" ? "rgba(217,180,91,.5)" : "rgba(255,255,255,.12)"; }
-  if (t === "game") kdGameHome(); else kdBrowse();
+  for (var key in tabs) {
+    var el = $(tabs[key]);
+    if (el) {
+      var act = key === t;
+      el.style.background = act ? on : off;
+      el.style.color = act ? "var(--gold)" : "var(--dim)";
+      el.style.borderColor = act ? "rgba(217,180,91,.5)" : "rgba(255,255,255,.12)";
+    }
+  }
+  if (t === "game") kdGameHome();
+  else if (t === "browse") kdBrowse();
+  else if (t === "kd" && window.rkKaodianHome) rkKaodianHome();
 }
 
 /* ---------- 闯关：考点挖空 ---------- */
@@ -439,6 +450,19 @@ function kdBrowse() {
 function kdFilter(q) {
   q = String(q || "").trim().toLowerCase();
   var html = "";
+  if (q && window.KAODIAN) {
+    var hits = window.KAODIAN.filter(function(k) {
+      return (k.title + " " + (k.topic||"") + " " + (k.mnemonic||"") + " " + (k.items||[]).join(" ")).toLowerCase().indexOf(q) >= 0;
+    });
+    if (hits.length) {
+      html += '<div class="section-h">📖 教材考点命中 ' + hits.length + '</div>';
+      hits.forEach(function(k) {
+        html += '<div style="background:rgba(217,180,91,.08);border:1px solid rgba(217,180,91,.4);border-radius:12px;padding:11px 14px;margin-bottom:8px;cursor:pointer" onclick="rkKdLearn(\'' + k.id + '\')">' +
+          '<div style="font-size:13px;color:var(--gold)">📖 ' + esc(k.title) + ' <span style="font-size:10px;color:var(--dim)">(' + esc(k.chapterName) + ')</span></div>' +
+          '<div style="font-size:10px;color:var(--dim);margin-top:3px">' + k.items.length + '条 · 点此进入记忆关</div></div>';
+      });
+    }
+  }
   KNOWLEDGE.forEach(function(c, ci) {
     var cards = (c.points || []).filter(function(p) {
       if (!q) return true;
@@ -532,5 +556,7 @@ function openTips() {
 </script>
 <script src="world.js"></script>
 <script src="rk-story.js"></script>
+<script src="kaodian.js"></script>
+<script src="kaodian-game.js"></script>
 </body>
 </html>

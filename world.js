@@ -239,13 +239,24 @@ function rkDailyState() {
   return d;
 }
 function rkGenDaily() {
-  var w = rkWState();
-  var all = [];
-  RK_STAGES.forEach(function (s) { s.areas.forEach(function (a) { all.push({ key: a.key, name: a.name, q: a.q, visited: !!w.visits[a.key], mastery: rkAreaMastery(a.key) }); }); });
-  // 优先：未学过 → 掌握度低的
+  // 今日修炼：从教材考点生成（今天最需要记忆的5个考点）
+  var all = (window.KAODIAN || []).map(function (k) {
+    return { key: k.id, name: k.title, q: k.title, kid: k.id, chapter: k.chapter };
+  });
+  if (!all.length) {
+    // 兜底：项目世界区域
+    var w = rkWState();
+    RK_STAGES.forEach(function (s) { s.areas.forEach(function (a) { all.push({ key: a.key, name: a.name, q: a.q }); }); });
+    return { date: rkToday(), tasks: rkShuffle(all.slice()).slice(0, 5), done: [false, false, false, false, false], claimed: false };
+  }
   all.sort(function (a, b) {
-    if (a.visited !== b.visited) return a.visited ? 1 : -1;
-    return a.mastery - b.mastery;
+    var sa = rkKmState()[a.kid], sb = rkKmState()[b.kid];
+    if (!!sa !== !!sb) return sa ? 1 : -1;
+    var ra = rkKmRisk(a.kid).lv, rb = rkKmRisk(b.kid).lv;
+    var la = ra === "high" ? 2 : ra === "med" ? 1 : 0;
+    var lb = rb === "high" ? 2 : rb === "med" ? 1 : 0;
+    if (la !== lb) return lb - la;
+    return rkKmMastery(a.kid) - rkKmMastery(b.kid);
   });
   var tasks = rkShuffle(all.slice(0, 8)).slice(0, 5);
   return { date: rkToday(), tasks: tasks, done: tasks.map(function () { return false; }), claimed: false };
@@ -268,14 +279,16 @@ function rkOpenDaily() {
 }
 function rkOpenTask(i) {
   var d = rkDailyState();
-  rkOpenSearch(d.tasks[i].q);
+  var t = d.tasks[i];
+  if (window.rkKdLearn && t.kid) { rkKdLearn(t.kid); return; }
+  rkOpenSearch(t.q);
 }
 function rkToggleTask(i) {
   var d = rkDailyState();
   if (d.claimed) { toast("今日全勤奖励已领取"); return; }
   d.done[i] = !d.done[i];
   rkLSSet(RK_DAILY, d);
-  if (d.done[i]) { rkAddXP(10, "完成修炼任务"); rkRecordStudy(d.tasks[i].key, true); }
+  if (d.done[i]) { rkAddXP(10, "完成修炼任务"); if (window.rkKmTouch && d.tasks[i].kid) rkKmTouch(d.tasks[i].kid, "study"); else rkRecordStudy(d.tasks[i].key, true); }
   else rkAddXP(-10, "撤销任务");
   if (d.done.every(Boolean) && !d.claimed) {
     d.claimed = true;
@@ -513,6 +526,19 @@ function rkOpenMap() {
     html += '<span class="area-chip" onclick="rkMapNode(\'' + id + '\')">' + n.icon + ' ' + esc(n.name) + '</span>';
   });
   html += '</div>';
+  // 章节考点树（教材考点为核心）
+  if (window.KAODIAN) {
+    html += '<div class="section-h">📚 章节考点树 · 9~11章教材考点</div>';
+    [9, 10, 11].forEach(function (ch) {
+      var kds = window.KAODIAN.filter(function (k) { return k.chapter === ch; });
+      html += '<div style="font-size:11px;color:var(--gold);margin:4px 0 2px">第' + ch + '章 <span style="color:var(--dim);font-size:10px">(' + kds.length + '考点)</span></div><div style="margin-bottom:8px">';
+      kds.forEach(function (k) {
+        var m = rkKmMastery(k.id);
+        html += '<span class="area-chip' + (m > 0 ? " done" : "") + '" onclick="rkKdLearn(\'' + k.id + '\')">' + esc(k.title) + '</span>';
+      });
+      html += '</div>';
+    });
+  }
   // 为什么系统
   html += '<div class="section-h">🧠 为什么是 启动→规划→执行→监控→收尾？</div>' +
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px">';
@@ -626,6 +652,30 @@ function rkGameDone(type, id, title, wrong) {
 /* ---------- 遗忘地图（我的记忆 v2） ---------- */
 function rkOpenMemory() {
   var html = rkHeader("🧠 我的记忆");
+  // 教材考点掌握度（真正的考点级）
+  if (window.KAODIAN) {
+    html += '<div class="section-h">📚 教材考点掌握度（9~11章）</div>';
+    [9, 10, 11].forEach(function (ch) {
+      var kds = window.KAODIAN.filter(function (k) { return k.chapter === ch; });
+      var avg = kds.length ? Math.round(kds.reduce(function (s, k) { return s + rkKmMastery(k.id); }, 0) / kds.length) : 0;
+      html += '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px"><span>第' + ch + '章</span><span style="color:var(--gold)">' + avg + '%</span></div>' +
+        '<div class="mem-bar" style="height:6px"><i style="width:' + avg + '%"></i></div></div>';
+    });
+    var sorted = window.KAODIAN.slice().sort(function (a, b) {
+      var ra = rkKmRisk(a.id).lv, rb = rkKmRisk(b.id).lv;
+      var la = ra === "high" ? 2 : ra === "med" ? 1 : 0, lb = rb === "high" ? 2 : rb === "med" ? 1 : 0;
+      if (la !== lb) return lb - la;
+      return rkKmMastery(a.id) - rkKmMastery(b.id);
+    }).slice(0, 6);
+    html += '<div style="font-size:11px;color:var(--dim);margin:8px 0 4px">🔥 最需要记忆的考点（点它进入记忆关）：</div>';
+    sorted.forEach(function (k) {
+      var m = rkKmMastery(k.id), r = rkKmRisk(k.id);
+      html += '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 12px;margin-bottom:6px;cursor:pointer" onclick="rkKdLearn(\'' + k.id + '\')">' +
+        '<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(k.title) + '</div>' +
+        '<div class="mem-bar" style="height:5px;margin-top:4px"><i style="width:' + m + '%;height:100%;display:block;background:' + (m >= 70 ? "var(--jade)" : m >= 40 ? "var(--gold)" : "var(--cinnabar)") + ';border-radius:3px"></i></div></div>' +
+        '<span style="font-size:10px;color:' + (r.lv === "high" ? "var(--cinnabar)" : r.lv === "med" ? "var(--gold)" : "var(--jade)") + ';flex-shrink:0">' + m + '% · 风险' + r.name + '</span></div>';
+    });
+  }
   var totalA = rkAllTotal();
   // 五大阶段掌握度条（掌握度算法：学习次数/最近学习/对错/遗忘衰减）
   RK_STAGES.forEach(function (s) {
