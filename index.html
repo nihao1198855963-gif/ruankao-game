@@ -60,7 +60,7 @@
     </div>
     <div class="menu-item" onclick="openKnowledge()">
       <div class="icon">📚</div>
-      <div><div class="name">考点库</div><div class="desc">18章知识卡全览+搜索：每次新增/修改的考点都能直接看到</div></div>
+      <div><div class="name">考点库</div><div class="desc">考点挖空闯关+全览搜索：新增/修改考点直接可见，边玩边背</div></div>
       <div class="go">›</div>
     </div>
     <div class="menu-item" onclick="openCompare()">
@@ -124,19 +124,271 @@ function goHome() {
   window.scrollTo(0,0);
 }
 
-/* 考点库：知识卡全览 + 搜索（所有新增/修改考点直接可见） */
+/* ===== 考点库：挖空闯关 + 全览搜索（2026-08-19） ===== */
+var KD = { chapterIdx: -1, qs: [], qi: 0, correct: 0, streak: 0, maxStreak: 0, score: 0, blanks: [], pool: [], answered: false };
+
 function openKnowledge() {
-  var totalCards = 0;
-  KNOWLEDGE.forEach(function(c){ totalCards += (c.points || []).length; });
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
     '<button class="btn-back" onclick="goHome()" style="background:none;border:1px solid rgba(217,180,91,.4);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit">← 返回</button>' +
     '<h2 style="font-size:17px;color:var(--gold);font-family:\'Kaiti SC\',serif">考点库</h2><span style="width:60px"></span></div>' +
-    '<div style="font-size:12px;color:var(--dim);margin-bottom:10px">共 ' + KNOWLEDGE.length + ' 章 · ' + totalCards + ' 条知识卡 · 所有新增/修改考点都在这里，可搜索</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+    '<button id="kd-tab-game" onclick="kdTab(\'game\')" style="flex:1;background:rgba(217,180,91,.15);border:1px solid rgba(217,180,91,.5);color:var(--gold);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">🎮 挖空闯关</button>' +
+    '<button id="kd-tab-browse" onclick="kdTab(\'browse\')" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:9px 0;font-size:14px;cursor:pointer;font-family:inherit">📖 全览搜索</button>' +
+    '</div><div id="kd-body"></div>';
+  $("screen-knowledge").innerHTML = html;
+  kdTab("game");
+  showScreen("screen-knowledge");
+}
+function kdTab(t) {
+  var g = $("kd-tab-game"), b = $("kd-tab-browse");
+  var on = "rgba(217,180,91,.15)", off = "rgba(255,255,255,.04)";
+  if (g) { g.style.background = t === "game" ? on : off; g.style.color = t === "game" ? "var(--gold)" : "var(--dim)"; g.style.borderColor = t === "game" ? "rgba(217,180,91,.5)" : "rgba(255,255,255,.12)"; }
+  if (b) { b.style.background = t === "browse" ? on : off; b.style.color = t === "browse" ? "var(--gold)" : "var(--dim)"; b.style.borderColor = t === "browse" ? "rgba(217,180,91,.5)" : "rgba(255,255,255,.12)"; }
+  if (t === "game") kdGameHome(); else kdBrowse();
+}
+
+/* ---------- 闯关：考点挖空 ---------- */
+function kdGameHome() {
+  var stars = 0;
+  for (var i = 0; i < KNOWLEDGE.length; i++) if (parseInt(localStorage.getItem("kd-star-" + i) || "0") >= 1) stars++;
+  var html = '<div style="font-size:12px;color:var(--dim);margin-bottom:12px">考点挖空闯关：把被挖掉的关键词填回去。每章按正确率得★，<b style="color:var(--gold)">' + stars + '/' + KNOWLEDGE.length + '</b> 章已通关</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">' +
+    '<button onclick="kdStart(-1)" style="background:linear-gradient(135deg,rgba(217,180,91,.28),rgba(192,80,60,.22));border:1px solid var(--gold);color:var(--gold);border-radius:20px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600">⚔️ 全部混战 · 15题</button>';
+  KNOWLEDGE.forEach(function(c, ci) {
+    var st = parseInt(localStorage.getItem("kd-star-" + ci) || "0");
+    var starTxt = st >= 3 ? " ★★★" : st === 2 ? " ★★" : st === 1 ? " ★" : "";
+    var nm = String(c.cat || "").replace("第", "").replace("章", "");
+    html += '<button onclick="kdStart(' + ci + ')" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--paper);border-radius:20px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:inherit">' + esc(nm) + starTxt + '</button>';
+  });
+  html += '</div>' +
+    '<div style="font-size:11px;color:var(--dim);line-height:1.9;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px">💡 玩法：考点里的关键词被挖空 → 从词池挑词填回 → 检查对错。数字/术语/口诀词最容易被挖，填错会亮出正确答案。<br>🏆 计分：每题 10分 + 连击加成；正确率 ≥80% 三星 / ≥50% 两星 / 其余一星。</div>';
+  $("kd-body").innerHTML = html;
+}
+function kdBuildQuestions(chapterIdx) {
+  var items = [];
+  if (chapterIdx >= 0) {
+    (KNOWLEDGE[chapterIdx].points || []).forEach(function(p){ items.push({ c: chapterIdx, p: p }); });
+  } else {
+    KNOWLEDGE.forEach(function(c, ci){ (c.points || []).forEach(function(p){ items.push({ c: ci, p: p }); }); });
+  }
+  var qs = [];
+  items.forEach(function(it) {
+    var pts = (it.p.points || []).filter(function(x){ return x && x.length >= 2; });
+    if (!pts.length) return;
+    var mn = it.p.mnemonic || "";
+    var scored = pts.map(function(x, i) {
+      var s = /\d/.test(x) ? 40 : 0;
+      if (mn && x.indexOf(mn) >= 0) s += 25;
+      s += Math.min(x.length, 60) / 5;
+      return { i: i, s: s };
+    }).sort(function(a, b){ return b.s - a.s; });
+    var blanks = [], chosen = {};
+    for (var k = 0; k < scored.length && blanks.length < 2; k++) {
+      var idx = scored[k].i;
+      if (chosen[idx]) continue;
+      var tok = kdPickToken(pts[idx], mn);
+      if (!tok) continue;
+      if (blanks.length && blanks[0].token === tok) continue;
+      chosen[idx] = 1;
+      blanks.push({ pt: pts[idx], token: tok });
+    }
+    if (blanks.length) qs.push({ c: it.c, card: it.p, blanks: blanks });
+  });
+  for (var i = qs.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = qs[i]; qs[i] = qs[j]; qs[j] = t; }
+  if (chapterIdx < 0) qs = qs.slice(0, 15);
+  return qs;
+}
+function kdPickToken(pt, mn) {
+  var best = null, bs = -999;
+  function consider(t, long) {
+    if (!t || t.length < 2) return;
+    if (!long && t.length > 10) return; // 首选只收≤10字
+    var s = 0;
+    if (/\d/.test(t)) s += 100;
+    if (mn && mn.indexOf(t) >= 0) s += 80;
+    if (pt.indexOf("：" + t) >= 0 || pt.indexOf(":" + t) >= 0) s += 30;
+    if (t.length >= 4 && t.length <= 6) s += 25;
+    if (t.length >= 7 && t.length <= 8) s += 15;
+    if (t.length >= 9 && t.length <= 10) s += 5;
+    if (t.length > 10) s -= 30;
+    if (s > bs) { bs = s; best = t; }
+  }
+  var m = pt.match(/\d[\d.~%→－\-]*[^，。；;：:（）()\/+\s]{0,3}/);
+  if (m) consider(m[0]);
+  pt.split(/[、，。；;：:（）()\/+\s]+/).forEach(function(t){ consider(t); });
+  if (!best) {
+    // 全超长：找边界词（为/是/指/对/把/将…）取其后关键词
+    var chars = ["为", "是", "指", "对", "由", "把", "将", "被", "向", "给", "与", "和", "及", "或", "的", "了"];
+    var bi = -1;
+    for (var c = 0; c < chars.length; c++) {
+      var idx = pt.indexOf(chars[c]);
+      if (idx >= 0 && (bi < 0 || idx < bi)) bi = idx;
+    }
+    if (bi >= 0 && pt.length - bi - 1 >= 2) consider(pt.substr(bi + 1, 6), true);
+    if (!best) consider(pt.slice(0, 4), true);
+    if (!best && pt.length >= 2) consider(pt.slice(0, Math.min(4, pt.length)), true);
+  }
+  return best;
+}
+function kdDistractors(q, answers) {
+  var cand = [];
+  (KNOWLEDGE[q.c].points || []).forEach(function(p) {
+    (p.points || []).forEach(function(x) {
+      x.split(/[、，。；;：:（）()\/+\s]+/).forEach(function(t) {
+        if (t && t.length >= 2 && t.length <= 10 && answers.indexOf(t) < 0 && cand.indexOf(t) < 0) cand.push(t);
+      });
+    });
+  });
+  for (var i = cand.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = cand[i]; cand[i] = cand[j]; cand[j] = t; }
+  return cand.slice(0, 4);
+}
+function kdStart(chapterIdx) {
+  KD.chapterIdx = chapterIdx;
+  KD.qs = kdBuildQuestions(chapterIdx);
+  KD.qi = 0; KD.correct = 0; KD.streak = 0; KD.maxStreak = 0; KD.score = 0;
+  if (!KD.qs.length) { $("kd-body").innerHTML = '<div style="text-align:center;color:var(--dim);padding:40px 20px;font-size:14px">本关没有适合挖空的考点，换个章节试试</div>'; return; }
+  kdRenderQ();
+}
+function kdRenderQ() {
+  var q = KD.qs[KD.qi];
+  KD.blanks = q.blanks.map(function(b){ return { pt: b.pt, token: b.token, filled: "" }; });
+  KD.answered = false;
+  var answers = q.blanks.map(function(b){ return b.token; });
+  var pool = [];
+  answers.forEach(function(a){ if (pool.indexOf(a) < 0) pool.push(a); });
+  kdDistractors(q, answers).forEach(function(d){ if (pool.indexOf(d) < 0) pool.push(d); });
+  for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+  KD.pool = pool;
+  var lv = q.card.level ? '<span style="font-size:10px;color:var(--jade);border:1px solid rgba(74,157,124,.5);border-radius:4px;padding:1px 6px;margin-left:6px">' + esc(q.card.level) + '</span>' : '';
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;color:var(--dim)">' +
+    '<span>🎯 ' + esc(KNOWLEDGE[q.c].cat || "") + ' · 第 ' + (KD.qi + 1) + '/' + KD.qs.length + ' 题</span>' +
+    '<span>🔥连击 ' + KD.streak + ' · 💯 ' + KD.score + '</span></div>' +
+    '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(217,180,91,.35);border-radius:12px;padding:14px 16px;margin-bottom:12px">' +
+    '<div style="font-size:14px;font-weight:600;color:var(--gold);margin-bottom:10px">📖 ' + esc(q.card.title) + lv + '</div>';
+  (q.card.points || []).forEach(function(pt) {
+    var bi = -1;
+    KD.blanks.forEach(function(b, i){ if (b.pt === pt) bi = i; });
+    if (bi < 0) { html += '<div style="padding:2px 0;line-height:1.8">· ' + esc(pt) + '</div>'; return; }
+    var parts = pt.split(KD.blanks[bi].token);
+    var line = "", addedSlot = false;
+    parts.forEach(function(p, k) {
+      line += esc(p);
+      if (k < parts.length - 1) {
+        if (!addedSlot) {
+          addedSlot = true;
+          line += '<button id="kd-slot-' + bi + '" onclick="kdSlotClick(' + bi + ')" style="background:rgba(255,255,255,.08);border:1px dashed rgba(217,180,91,.7);color:var(--gold);border-radius:6px;padding:2px 10px;min-width:64px;font-size:13px;font-family:inherit;cursor:pointer;margin:0 2px">____</button>';
+        } else {
+          line += esc(KD.blanks[bi].token);
+        }
+      }
+    });
+    html += '<div style="padding:3px 0;line-height:2">· ' + line + '</div>';
+  });
+  html += '</div><div style="font-size:12px;color:var(--dim);margin-bottom:8px">🗂️ 词池（点击填入空格）：</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+  KD.pool.forEach(function(tok, i) {
+    html += '<button id="kd-chip-' + i + '" onclick="kdChipClick(' + i + ')" style="background:rgba(255,255,255,.06);border:1px solid rgba(217,180,91,.45);color:var(--paper);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit">' + esc(tok) + '</button>';
+  });
+  html += '</div><div id="kd-btns" style="display:flex;gap:10px">' +
+    '<button id="kd-check-btn" onclick="kdCheck()" disabled style="flex:1;background:rgba(74,157,124,.2);border:1px solid var(--jade);color:var(--jade);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit;opacity:.4">✅ 检查</button>' +
+    '<button onclick="kdGameHome()" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">↩ 换章节</button></div>';
+  $("kd-body").innerHTML = html;
+}
+function kdChipClick(i) {
+  if (KD.answered) return;
+  var tok = KD.pool[i];
+  for (var bi = 0; bi < KD.blanks.length; bi++) {
+    if (!KD.blanks[bi].filled) {
+      KD.blanks[bi].filled = tok;
+      var slot = $("kd-slot-" + bi);
+      if (slot) slot.textContent = tok;
+      var chip = $("kd-chip-" + i);
+      if (chip) { chip.style.opacity = ".25"; chip.style.pointerEvents = "none"; }
+      kdUpdateCheck();
+      return;
+    }
+  }
+}
+function kdSlotClick(bi) {
+  if (KD.answered) return;
+  var b = KD.blanks[bi];
+  if (!b.filled) return;
+  var tok = b.filled;
+  b.filled = "";
+  var slot = $("kd-slot-" + bi);
+  if (slot) slot.textContent = "____";
+  var idx = KD.pool.indexOf(tok);
+  if (idx >= 0) { var chip = $("kd-chip-" + idx); if (chip) { chip.style.opacity = "1"; chip.style.pointerEvents = "auto"; } }
+  kdUpdateCheck();
+}
+function kdUpdateCheck() {
+  var btn = $("kd-check-btn");
+  if (!btn) return;
+  var full = true;
+  KD.blanks.forEach(function(b){ if (!b.filled) full = false; });
+  btn.disabled = !full;
+  btn.style.opacity = full ? "1" : ".4";
+}
+function kdCheck() {
+  if (KD.answered) return;
+  KD.answered = true;
+  var allRight = true;
+  KD.blanks.forEach(function(b, bi) {
+    var slot = $("kd-slot-" + bi);
+    if (!slot) return;
+    if (b.filled === b.token) {
+      slot.style.border = "1px solid var(--jade)"; slot.style.color = "var(--jade)"; slot.style.background = "rgba(74,157,124,.15)";
+    } else {
+      allRight = false;
+      slot.style.border = "1px solid var(--cinnabar)"; slot.style.color = "var(--cinnabar)"; slot.style.background = "rgba(192,80,60,.12)";
+      slot.textContent = b.token;
+    }
+  });
+  var btns = "";
+  if (allRight) {
+    KD.correct++; KD.streak++; if (KD.streak > KD.maxStreak) KD.maxStreak = KD.streak;
+    var gain = 10 + KD.streak * 2;
+    KD.score += gain;
+    toast("✅ 正确！+" + gain + "分");
+  } else {
+    KD.streak = 0;
+    toast("❌ 对照答案再看一遍");
+  }
+  if (KD.qi + 1 >= KD.qs.length) btns = '<button onclick="kdResult()" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">🏁 查看成绩</button>';
+  else btns = '<button onclick="kdNext()" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">下一题 ›</button>';
+  btns += '<button onclick="kdGameHome()" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">↩ 换章节</button>';
+  var box = $("kd-btns");
+  if (box) box.innerHTML = btns;
+}
+function kdNext() { KD.qi++; kdRenderQ(); }
+function kdResult() {
+  var total = KD.qs.length, ratio = total ? KD.correct / total : 0;
+  var stars = ratio >= 0.8 ? 3 : ratio >= 0.5 ? 2 : 1;
+  if (KD.chapterIdx >= 0) {
+    var old = parseInt(localStorage.getItem("kd-star-" + KD.chapterIdx) || "0");
+    if (stars > old) localStorage.setItem("kd-star-" + KD.chapterIdx, String(stars));
+  }
+  var starTxt = stars === 3 ? "★★★" : stars === 2 ? "★★☆" : "★☆☆";
+  var html = '<div style="text-align:center;padding:30px 16px 10px">' +
+    '<div style="font-size:40px;color:var(--gold);margin-bottom:6px">' + starTxt + '</div>' +
+    '<div style="font-size:13px;color:var(--dim);margin-bottom:18px">' + esc(KNOWLEDGE[KD.chapterIdx >= 0 ? KD.chapterIdx : 0].cat) + (KD.chapterIdx < 0 ? " · 全部混战" : "") + '</div>' +
+    '<div style="font-size:15px;color:var(--paper);margin-bottom:8px">答对 <b style="color:var(--jade)">' + KD.correct + '</b> / ' + total + ' 题</div>' +
+    '<div style="font-size:13px;color:var(--dim);margin-bottom:6px">💯 总分 ' + KD.score + ' · 🔥 最大连击 ' + KD.maxStreak + '</div></div>' +
+    '<div style="display:flex;gap:10px;margin-top:20px">' +
+    '<button onclick="kdStart(' + KD.chapterIdx + ')" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">🔁 再来一局</button>' +
+    '<button onclick="kdGameHome()" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--paper);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">📚 选其他章</button></div>';
+  $("kd-body").innerHTML = html;
+}
+
+/* ---------- 浏览：全览 + 搜索 ---------- */
+function kdBrowse() {
+  var totalCards = 0;
+  KNOWLEDGE.forEach(function(c){ totalCards += (c.points || []).length; });
+  var html = '<div style="font-size:12px;color:var(--dim);margin-bottom:10px">共 ' + KNOWLEDGE.length + ' 章 · ' + totalCards + ' 条知识卡 · 所有新增/修改考点都在这里，可搜索</div>' +
     '<input id="kd-search" oninput="kdFilter(this.value)" placeholder="🔍 搜考点，如：风险管理计划 / 合同 / 口诀" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(217,180,91,.35);border-radius:10px;color:var(--paper);padding:10px 14px;font-size:14px;margin-bottom:12px;font-family:inherit;outline:none">' +
     '<div id="kd-list"></div>';
-  $("screen-knowledge").innerHTML = html;
+  $("kd-body").innerHTML = html;
   kdFilter("");
-  showScreen("screen-knowledge");
 }
 function kdFilter(q) {
   q = String(q || "").trim().toLowerCase();
