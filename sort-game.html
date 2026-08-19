@@ -90,6 +90,13 @@
 
   .hint-bar { margin-top: 10px; background: rgba(74,157,124,.1); border: 1px solid rgba(74,157,124,.4); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--jade); line-height: 1.7; }
 
+  /* 为什么面板（2.0） */
+  .why-box { margin-top: 12px; background: rgba(217,180,91,.08); border: 1px solid rgba(217,180,91,.35); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: var(--paper); line-height: 1.9; text-align: left; }
+  .why-box .w-title { color: var(--gold); font-family: "Kaiti SC", serif; margin-bottom: 6px; font-size: 13px; }
+  .why-box .w-row { display: flex; gap: 8px; padding: 2px 0; }
+  .why-box .w-row b { color: var(--gold); font-family: "Kaiti SC", serif; flex-shrink: 0; }
+  .why-box .w-end { color: var(--gold); font-family: "Kaiti SC", serif; border-top: 1px dashed rgba(217,180,91,.3); margin-top: 8px; padding-top: 8px; }
+
   /* 一图看懂 modal */
   .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
   .modal-mask.show { display: flex; }
@@ -132,6 +139,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="sort-questions.js"></script>
+<script src="rk-hook.js"></script>
 <script>
 var QUESTIONS = window.SORT_QUESTIONS || [];
 var SAVE_KEY = "rk_sort_v2";
@@ -311,14 +319,23 @@ function pickBrick(idx, el) {
     state.done[q.id] = true;
     if (!state.best[q.id] || cur.wrongCount < state.best[q.id]) state.best[q.id] = cur.wrongCount;
     saveState();
+    if (window.rkGameDone) rkGameDone("sort", q.id, q.title, cur.wrongCount);
     sndWin();
+    var whyHtml = (q.title === "五大过程组") ?
+      '<div class="why-box"><div class="w-title">🧠 为什么是这个顺序？</div>' +
+      '<div class="w-row"><b>启动</b><span>解决「这个项目到底要不要做？」——明确目标与授权（项目章程）</span></div>' +
+      '<div class="w-row"><b>规划</b><span>解决「这个项目准备怎么做？」——范围/进度/成本/风险全部想清楚</span></div>' +
+      '<div class="w-row"><b>执行</b><span>按照计划真正开始做，把计划变成交付成果</span></div>' +
+      '<div class="w-row"><b>监控</b><span>现在做得对不对？有没有偏差？控制变更、及时纠偏</span></div>' +
+      '<div class="w-row"><b>收尾</b><span>项目是否正式结束？验收、归档、总结</span></div>' +
+      '<div class="w-end">🎯 你记住的不是顺序，而是项目经理工作的逻辑。</div></div>' : '';
     setTimeout(function(){
       $("gameBody").innerHTML =
         '<div class="win-box"><div class="win-big">🎉 通关成功！</div>' +
         '<div class="win-sub">「' + esc(q.title) + '」已牢记' +
         (cur.wrongCount > 0 ? '<br>本次排错 ' + cur.wrongCount + ' 次' : '<br>一次通过，真仙之姿！') +
         (q.mnemonic ? '<br>📜 口诀：' + esc(q.mnemonic) : '') +
-        (state.best[q.id] !== undefined ? '<br>最佳纪录：' + state.best[q.id] + ' 次排错' : '') + '</div></div>' +
+        (state.best[q.id] !== undefined ? '<br>最佳纪录：' + state.best[q.id] + ' 次排错' : '') + '</div>' + whyHtml + '</div>' +
         '<div class="controls">' +
         '<button class="ctrl" onclick="startLevel(' + q.id + ')">🔁 再玩一次</button>' +
         prevNextBtns() +

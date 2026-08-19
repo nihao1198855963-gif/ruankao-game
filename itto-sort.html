@@ -91,6 +91,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="itto-questions.js"></script>
+<script src="rk-hook.js"></script>
 <script>
 var SLOTS = window.ITTO_SLOTS || [];
 var LEVELS = window.ITTO_LEVELS || [];
@@ -218,7 +219,7 @@ function dropTo(si) {
     cur.placed++; cur.selected = null;
     floatText("✓ " + card.name, "#4a9d7c");
     if (cur.placed >= l.cards.length) {
-      state.done[l.key] = true; saveState(); sndWin();
+      state.done[l.key] = true; saveState(); if (window.rkGameDone) rkGameDone("itto", l.key, l.name, 0); sndWin();
       setTimeout(function(){
         $("gameBody").innerHTML =
           '<div class="win-box"><div class="win-big">🎉 通关成功！</div>' +

@@ -200,6 +200,9 @@ function rkStageClick(idx) {
   html += '</div>';
   html += '<div style="font-size:11px;color:var(--dim);margin-top:16px;line-height:1.8">🧭 阶段使命：点亮本阶段全部 ' + s.areas.length + ' 个区域' +
     (rkStageVisited(s) >= s.areas.length ? ' → ✅ 已完成' : '') + '</div>';
+  // 为什么系统：每个阶段存在的意义
+  html += '<div class="section-h">🧠 为什么有' + s.name + '？</div>' +
+    '<div style="font-size:12px;color:var(--paper);line-height:1.9;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px">' + esc(RK_WHY_STAGE[s.key] || "") + '</div>';
   $("screen-world").innerHTML = html;
   showScreen("screen-world");
 }
@@ -210,6 +213,7 @@ function rkAreaClick(stageIdx, areaIdx) {
   var first = !w.visits[a.key];
   w.visits[a.key] = true;
   rkLSSet(RK_WORLD, w);
+  rkRecordStudy(a.key, true);
   if (first) {
     rkAddXP(15, "探索 " + s.name + " · " + a.name);
     if (rkStageVisited(s) >= s.areas.length) {
@@ -234,10 +238,13 @@ function rkDailyState() {
 function rkGenDaily() {
   var w = rkWState();
   var all = [];
-  RK_STAGES.forEach(function (s) { s.areas.forEach(function (a) { all.push({ key: a.key, name: a.name, q: a.q, visited: !!w.visits[a.key] }); }); });
-  var unseen = all.filter(function (a) { return !a.visited; });
-  var pool = unseen.length >= 5 ? unseen : all;
-  var tasks = rkShuffle(pool.slice()).slice(0, 5);
+  RK_STAGES.forEach(function (s) { s.areas.forEach(function (a) { all.push({ key: a.key, name: a.name, q: a.q, visited: !!w.visits[a.key], mastery: rkAreaMastery(a.key) }); }); });
+  // 优先：未学过 → 掌握度低的
+  all.sort(function (a, b) {
+    if (a.visited !== b.visited) return a.visited ? 1 : -1;
+    return a.mastery - b.mastery;
+  });
+  var tasks = rkShuffle(all.slice(0, 8)).slice(0, 5);
   return { date: rkToday(), tasks: tasks, done: tasks.map(function () { return false; }), claimed: false };
 }
 function rkOpenDaily() {
@@ -265,7 +272,7 @@ function rkToggleTask(i) {
   if (d.claimed) { toast("今日全勤奖励已领取"); return; }
   d.done[i] = !d.done[i];
   rkLSSet(RK_DAILY, d);
-  if (d.done[i]) rkAddXP(10, "完成修炼任务");
+  if (d.done[i]) { rkAddXP(10, "完成修炼任务"); rkRecordStudy(d.tasks[i].key, true); }
   else rkAddXP(-10, "撤销任务");
   if (d.done.every(Boolean) && !d.claimed) {
     d.claimed = true;
@@ -327,6 +334,337 @@ function rkRenderHome() {
     '<div class="row2"><span>🔥 今日修炼 ' + doneCount + '/' + d.tasks.length + '</span>' +
     '<span>🧠 掌握度 ' + mastery + '%</span>' +
     '<span>🗺️ ' + totalV + '/' + totalA + ' 区域</span></div>';
+}
+
+/* ============================================================
+   第二阶段：知识地图 / 为什么系统 / 知识点关系卡 / 遗忘地图(掌握度)
+   ============================================================ */
+
+/* ---------- 知识点关系数据（知识地图 + 关系卡） ---------- */
+var RK_MAP_CHAIN = ["scope", "plan", "req", "wbs", "activity", "sched", "cost", "risk"];
+var RK_MAP_EXTRA = ["charter", "stakeholder", "pmp", "critical", "ccb", "config", "riskreg"];
+var RK_MAP_NODES = [
+  { id: "scope", name: "项目范围", icon: "🎯",
+    what: "项目要做什么、不做什么的边界定义（范围说明书 + WBS + WBS词典 = 范围基准）。",
+    why: "没有边界，需求就会无限蔓延；范围是进度、成本、质量的衡量基准。",
+    when: "规划阶段：规划范围管理 → 收集需求 → 定义范围 → 创建 WBS。",
+    prev: ["charter", "stakeholder"], next: ["plan"],
+    confuse: { a: "范围", b: "需求", d: "范围=做什么的边界；需求=具体要什么。范围说明书描述边界，需求文件列具体条目。" },
+    memory: "范围就是项目的「边界线」。",
+    exam: "常考：范围说明书11项、范围基准构成、范围蔓延的防范。" },
+  { id: "plan", name: "范围管理计划", icon: "📋",
+    what: "记录如何定义、确认和控制范围的方法论（范围怎么管的流程）。",
+    why: "让团队知道范围怎么管：谁来定、怎么验、怎么改，避免各干各的。",
+    when: "规划过程组，制订范围管理计划时。",
+    prev: ["scope"], next: ["req"],
+    confuse: { a: "范围管理计划", b: "范围说明书", d: "计划=怎么管的流程；说明书=管什么的边界内容。" },
+    memory: "范围管理计划是「范围管理的说明书」。",
+    exam: "常考：它是子计划之一，内容含定义/确认/控制范围的方法。" },
+  { id: "req", name: "需求", icon: "📥",
+    what: "干系人对项目成果的具体期望和条件（业务/干系人/解决方案需求等）。",
+    why: "需求是范围的来源——先知道要什么，才能定义做什么。",
+    when: "规划阶段收集需求，用需求跟踪矩阵从目标贯穿到测试。",
+    prev: ["plan"], next: ["wbs"],
+    confuse: { a: "需求", b: "范围", d: "需求=要什么（愿望清单）；范围=承诺交付什么（合同边界）。" },
+    memory: "需求是愿望，范围是承诺。",
+    exam: "常考：需求分类、需求跟踪矩阵、需求基准。" },
+  { id: "wbs", name: "WBS", icon: "📦",
+    what: "把项目范围和可交付成果逐层分解为更小、更易管理的工作包。",
+    why: "让大而模糊的范围变得可管理、可估算、可分配责任、可跟踪。",
+    when: "规划阶段创建 WBS（100%原则、4~6层、每元素一人负责）。",
+    prev: ["req"], next: ["activity"],
+    confuse: { a: "WBS", b: "活动清单", d: "WBS拆交付成果（名词）；活动清单列动作（动词）。" },
+    memory: "WBS负责把交付成果拆开。",
+    exam: "常考：分解步骤（识成果→定结构→逐层细化→编码→核实）、8方面注意、工作包/控制账户。" },
+  { id: "activity", name: "活动", icon: "🏃",
+    what: "WBS工作包再往下分解成具体动作（动词短语），是排工期的基础。",
+    why: "只有拆到活动级别，才能估算工期、分配资源、画网络图。",
+    when: "规划阶段：定义活动（分解 + 滚动式规划）。",
+    prev: ["wbs"], next: ["sched"],
+    confuse: { a: "活动", b: "工作包", d: "工作包是交付物；活动是做交付物的动作。WBS→工作包→活动。" },
+    memory: "WBS拆「东西」，活动拆「动作」。",
+    exam: "常考：定义活动工具（分解/滚动式规划）、活动属性。" },
+  { id: "sched", name: "进度计划", icon: "📅",
+    what: "活动何时开始、何时结束的时间安排（网络图 + 估算 + 资源平衡）。",
+    why: "回答「什么时候能交付」，是监控进度的基准。",
+    when: "规划阶段：排活动顺序 → 估算工期 → 制订进度计划。",
+    prev: ["activity"], next: ["cost", "critical"],
+    confuse: { a: "进度计划", b: "进度管理计划", d: "进度计划=具体时间表；进度管理计划=怎么管进度的流程。" },
+    memory: "进度计划是「时间表」，管理计划是「管法」。",
+    exam: "常考：关键路径法、总时差/自由时差、赶工vs快速跟进。" },
+  { id: "critical", name: "关键路径", icon: "⚡",
+    what: "网络图中持续时间最长的路径，决定项目最短工期，总浮动为0。",
+    why: "关键路径上的活动晚一天，整个项目就晚一天——资源优先保它。",
+    when: "制订进度计划时用关键路径法（CPM）算出。",
+    prev: ["sched"], next: [],
+    confuse: { a: "总时差", b: "自由时差", d: "总时差=不影响总工期可推迟的时间；自由时差=不影响紧后活动可推迟的时间。" },
+    memory: "关键路径动不得，一动全项目都动。",
+    exam: "常考：找关键路径、算时差、赶工（加资源）与快速跟进（改并行）。" },
+  { id: "cost", name: "成本", icon: "💰",
+    what: "项目要花多少钱：估算 → 预算 → 成本基准（S曲线），用挣值管理监控。",
+    why: "钱是项目约束的核心，超支即失控；成本基准是考核依据。",
+    when: "规划阶段估算并定预算；执行/监控阶段用 PV/EV/AC 分析。",
+    prev: ["sched"], next: ["risk"],
+    confuse: { a: "成本估算", b: "成本预算", d: "估算是预测要花多少；预算是把估算分摊到时间轴上形成基准。" },
+    memory: "先估再算，预算变基准。",
+    exam: "常考：PV/EV/AC、CV/CPI、EAC/ETC、三点估算。" },
+  { id: "risk", name: "风险", icon: "⚠️",
+    what: "不确定事件，可能对项目产生正面（机会）或负面（威胁）影响。",
+    why: "项目充满不确定，提前识别、分析、应对，才能少踩坑。",
+    when: "规划阶段识别→分析→规划应对；执行阶段实施应对；监控阶段监督。",
+    prev: ["cost"], next: ["riskreg"],
+    confuse: { a: "风险", b: "问题", d: "风险=还没发生的不确定；问题=已经发生的麻烦。" },
+    memory: "风险是「可能出事」，问题是「已经出事」。",
+    exam: "常考：风险七过程、应对策略（规避/转移/减轻/接受）、风险登记册。" },
+  { id: "riskreg", name: "风险登记册", icon: "📖",
+    what: "记录已识别风险、分析结果和应对计划的清单（活文档）。",
+    why: "风险的唯一事实来源，随项目推进持续更新。",
+    when: "识别风险时创建，贯穿整个项目持续更新。",
+    prev: ["risk"], next: [],
+    confuse: { a: "风险登记册", b: "风险报告", d: "登记册=风险清单底账；报告=给干系人看的阶段性汇报。" },
+    memory: "风险登记册是风险的「户口本」。",
+    exam: "常考：它是识别风险的输出、贯穿项目、持续更新。" },
+  { id: "charter", name: "项目章程", icon: "📜",
+    what: "正式批准项目并授权项目经理使用组织资源的文件。",
+    why: "没章程=没授权：你凭什么调资源？项目凭什么存在？",
+    when: "启动阶段，由发起人发布，先于任何规划。",
+    prev: [], next: ["scope", "stakeholder", "pmp"],
+    confuse: { a: "项目章程", b: "项目管理计划", d: "章程=启动时批准项目的授权书；计划=规划后怎么做事的方案。" },
+    memory: "章程=出生证明+授权书。",
+    exam: "常考：章程内容（目标/发起人/授权/初步范围预算）、由发起人发布。" },
+  { id: "stakeholder", name: "干系人", icon: "🤝",
+    what: "影响项目或被项目影响的个人或组织（客户/老板/团队/供应商…）。",
+    why: "不识别干系人=不知道谁会支持你、谁会使绊子。",
+    when: "启动阶段识别，规划阶段制定参与计划，执行/监控持续管理。",
+    prev: ["charter"], next: ["scope"],
+    confuse: { a: "干系人登记册", b: "干系人参与计划", d: "登记册=谁是谁；参与计划=怎么让每个人参与。" },
+    memory: "先认人，再管人。",
+    exam: "常考：识别干系人工具（权力/利益方格）、参与度五级评估矩阵。" },
+  { id: "pmp", name: "项目管理计划", icon: "🗂️",
+    what: "整合所有子计划（范围/进度/成本/质量/资源/沟通/风险/采购/干系人）的总计划。",
+    why: "项目怎么做的总纲，一切执行、监控、变更都以它为基准。",
+    when: "规划阶段整合制定，随变更持续更新。",
+    prev: ["charter"], next: ["ccb"],
+    confuse: { a: "项目管理计划", b: "项目章程", d: "计划=怎么做事的方案；章程=批准项目存在的授权。" },
+    memory: "章程是出生证，计划是施工图。",
+    exam: "常考：整合过程（制订项目管理计划）的输出，基准变更要走变更控制。" },
+  { id: "ccb", name: "整体变更控制", icon: "🔄",
+    what: "一套流程：任何基准变更必须走「提交→评估→审批（CCB）→执行→更新」流程。",
+    why: "项目边做边变是常态，没有变更控制=范围蔓延、成本失控。",
+    when: "监控阶段贯穿全程，所有变更请求都在这里处理。",
+    prev: ["pmp"], next: [],
+    confuse: { a: "变更控制", b: "配置管理", d: "变更控制管「要不要改、怎么改」；配置管理管「改了什么、版本对不对」。" },
+    memory: "变更管流程，配置管版本。",
+    exam: "常考：变更控制流程、CCB职责、配置项状态流转（草稿→正式→修改）。" },
+  { id: "config", name: "配置管理", icon: "🗃️",
+    what: "管理配置项的标识、版本、变更、审计（开发库/受控库/产品库）。",
+    why: "保证产品在任意时刻的版本是正确、可追溯的。",
+    when: "贯穿项目：配置项识别→控制→状态记录→配置审计。",
+    prev: [], next: ["ccb"],
+    confuse: { a: "配置管理", b: "变更控制", d: "配置管版本与基线；变更管审批流程。变更结果靠配置管理落地。" },
+    memory: "配置管理是项目的「版本库」。",
+    exam: "常考：配置库三库流转、配置项状态流转、配置审计类型。" }
+];
+
+/* ---------- 为什么系统（五大阶段顺序逻辑） ---------- */
+var RK_WHY_ORDER = [
+  { name: "启动", q: "这个项目到底要不要做？", d: "明确项目存在理由、目标与授权（项目章程），任命项目经理。" },
+  { name: "规划", q: "这个项目准备怎么做？", d: "范围/进度/成本/质量/资源/沟通/风险/采购/干系人全部想清楚，形成计划。" },
+  { name: "执行", q: "按照计划真正开始做。", d: "指导与管理项目工作，把计划变成可交付成果。" },
+  { name: "监控", q: "现在做得对不对？有没有偏差？", d: "跟踪、审查、分析偏差、控制变更，及时纠偏。" },
+  { name: "收尾", q: "项目是否正式结束？", d: "验收、归档、释放资源、总结经验教训。" }
+];
+var RK_WHY_STAGE = {
+  startup: "启动解决「这个项目到底要不要做？」——明确项目存在理由、目标与授权（项目章程），任命项目经理，识别干系人。",
+  planning: "规划解决「这个项目准备怎么做？」——把范围、进度、成本、质量、资源、沟通、风险、采购、干系人全部想清楚，形成项目管理计划。",
+  execution: "执行解决「按照计划真正开始做」——指导与管理项目工作，把计划变成可交付成果，建设团队、管理沟通、实施风险应对。",
+  monitor: "监控解决「现在做得对不对？有没有偏差？」——跟踪、审查、分析偏差，控制变更，及时纠偏，防止范围蔓延。",
+  closing: "收尾解决「项目是否正式结束？」——验收、归档、释放资源、总结经验教训，正式关闭项目。"
+};
+
+/* ---------- 知识地图界面 ---------- */
+function rkMapFind(id) {
+  for (var i = 0; i < RK_MAP_NODES.length; i++) if (RK_MAP_NODES[i].id === id) return RK_MAP_NODES[i];
+  return null;
+}
+function rkOpenMap() {
+  var html = rkHeader("🗺️ 知识地图");
+  html += '<div style="font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.8">知识点不是孤立的——它们是一条项目流水线。<br>点任意节点，看它是什么、为什么存在、和谁相连。</div>';
+  html += '<div style="background:rgba(217,180,91,.08);border:1px solid rgba(217,180,91,.3);border-radius:12px;padding:12px 14px;margin-bottom:12px">' +
+    '<div style="font-size:12px;color:var(--gold);font-family:\'Kaiti SC\',serif;margin-bottom:6px">🧠 主链：范围怎么变成风险</div>' +
+    '<div style="font-size:11px;color:var(--dim);line-height:1.9">项目范围 → 范围管理计划 → 需求 → WBS → 活动 → 进度计划 → 成本 → 风险<br>从「做什么」一路推到「怕什么」。</div></div>';
+  // 主链
+  html += '<div class="map-vertical" style="margin-bottom:16px">';
+  RK_MAP_CHAIN.forEach(function (id, i) {
+    var n = rkMapFind(id);
+    html += '<div class="map-node" style="text-align:center" onclick="rkMapNode(\'' + id + '\')">' +
+      '<div class="nm">' + n.icon + ' ' + esc(n.name) + '</div></div>';
+    if (i < RK_MAP_CHAIN.length - 1) html += '<div class="map-link">↓</div>';
+  });
+  html += '</div>';
+  // 延伸知识点
+  html += '<div class="section-h">🔗 延伸知识点</div>';
+  html += '<div style="margin-bottom:14px">';
+  RK_MAP_EXTRA.forEach(function (id) {
+    var n = rkMapFind(id);
+    html += '<span class="area-chip" onclick="rkMapNode(\'' + id + '\')">' + n.icon + ' ' + esc(n.name) + '</span>';
+  });
+  html += '</div>';
+  // 为什么系统
+  html += '<div class="section-h">🧠 为什么是 启动→规划→执行→监控→收尾？</div>' +
+    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px">';
+  RK_WHY_ORDER.forEach(function (w, i) {
+    html += '<div style="display:flex;gap:10px;padding:6px 0;font-size:12px;line-height:1.7">' +
+      '<span style="color:var(--gold);font-family:\'Kaiti SC\',serif;flex-shrink:0">' + (i + 1) + '. ' + w.name + '</span>' +
+      '<span style="color:var(--paper)">「' + esc(w.q) + '」<span style="color:var(--dim)">' + esc(w.d) + '</span></span></div>';
+  });
+  html += '<div style="font-size:12px;color:var(--gold);font-family:\'Kaiti SC\',serif;padding-top:8px;border-top:1px dashed rgba(217,180,91,.3)">🎯 你记住的不是顺序，而是项目经理工作的逻辑。</div></div>';
+  $("screen-map").innerHTML = html;
+  showScreen("screen-map");
+}
+function rkMapNode(id) {
+  var n = rkMapFind(id);
+  if (!n) return;
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+    '<button class="btn-back" onclick="rkOpenMap()" style="background:none;border:1px solid rgba(217,180,91,.4);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit">← 地图</button>' +
+    '<h2 style="font-size:17px;color:var(--gold);font-family:\'Kaiti SC\',serif">' + n.icon + ' ' + esc(n.name) + '</h2><span style="width:60px"></span></div>';
+  html += '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(217,180,91,.4);border-radius:14px;padding:16px;font-size:13px;line-height:2">' +
+    '<div><b style="color:var(--gold)">📌 它是什么？</b><br><span style="color:var(--paper)">' + esc(n.what) + '</span></div>' +
+    '<div style="margin-top:10px"><b style="color:var(--gold)">🎯 为什么需要？</b><br><span style="color:var(--paper)">' + esc(n.why) + '</span></div>' +
+    '<div style="margin-top:10px"><b style="color:var(--gold)">⏰ 什么时候用？</b><br><span style="color:var(--paper)">' + esc(n.when) + '</span></div>' +
+    (n.prev.length ? '<div style="margin-top:10px"><b style="color:var(--gold)">🔗 前置知识</b> ' + n.prev.map(function (p) { var x = rkMapFind(p); return '<span class="area-chip" onclick="rkMapNode(\'' + p + '\')">' + x.icon + ' ' + esc(x.name) + '</span>'; }).join("") + '</div>' : '') +
+    (n.next.length ? '<div style="margin-top:6px"><b style="color:var(--gold)">🔗 后续知识</b> ' + n.next.map(function (p) { var x = rkMapFind(p); return '<span class="area-chip" onclick="rkMapNode(\'' + p + '\')">' + x.icon + ' ' + esc(x.name) + '</span>'; }).join("") + '</div>' : '') +
+    '<div style="margin-top:10px"><b style="color:var(--gold)">⚠️ 易混辨析</b><br><span style="color:var(--paper)">' + esc(n.confuse.a) + ' ≠ ' + esc(n.confuse.b) + '：' + esc(n.confuse.d) + '</span></div>' +
+    '<div style="margin-top:10px"><b style="color:var(--gold)">🧠 一句话记忆</b><br><span style="color:var(--paper);font-family:\'Kaiti SC\',serif">' + esc(n.memory) + '</span></div>' +
+    '<div style="margin-top:10px"><b style="color:var(--gold)">📝 考试怎么考</b><br><span style="color:var(--dim)">' + esc(n.exam) + '</span></div>' +
+    '</div>';
+  html += '<div style="display:flex;gap:10px;margin-top:14px">' +
+    '<button onclick="rkMapStudy(\'' + id + '\')" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">📚 去考点库学习</button>' +
+    '<button onclick="rkOpenMap()" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">🗺️ 返回地图</button></div>';
+  $("screen-map").innerHTML = html;
+  showScreen("screen-map");
+}
+function rkMapStudy(id) {
+  var n = rkMapFind(id);
+  if (!n) return;
+  rkOpenSearch(n.name);
+}
+
+/* ---------- 掌握度算法（遗忘地图数据源） ---------- */
+var RK_MASTERY = "rk2_mastery", RK_KDSTATS = "rk2_kdstats", RK_GAMES = "rk2_games";
+function rkRecordStudy(areaKey, ok) {
+  var m = rkLSGet(RK_MASTERY, {});
+  var e = m[areaKey] || { study: 0, last: 0, right: 0, wrong: 0 };
+  e.study++; e.last = Date.now();
+  if (ok) e.right++; else e.wrong++;
+  m[areaKey] = e;
+  rkLSSet(RK_MASTERY, m);
+}
+function rkAreaMastery(key) {
+  var e = rkLSGet(RK_MASTERY, {})[key];
+  if (!e) return 0;
+  var days = (Date.now() - e.last) / 86400000;
+  var score = 20 + Math.min(e.study, 6) * 14 + (e.wrong === 0 ? 10 : 0) - e.wrong * 8 - days * 2;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+function rkRiskOf(key) {
+  var e = rkLSGet(RK_MASTERY, {})[key];
+  var days = e ? (Date.now() - e.last) / 86400000 : 999;
+  var m = rkAreaMastery(key);
+  if (days >= 3 || m < 35) return { lv: "high", name: "高", min: 16 };
+  if (days >= 1 || m < 65) return { lv: "med", name: "中", min: 12 };
+  return { lv: "low", name: "低", min: 8 };
+}
+function rkStageMastery(s) {
+  var sum = 0;
+  s.areas.forEach(function (a) { sum += rkAreaMastery(a.key); });
+  return Math.round(sum / s.areas.length);
+}
+function rkRecommend() {
+  // 学过的区域里挑遗忘风险最高的
+  var m = rkLSGet(RK_MASTERY, {});
+  var studied = [];
+  RK_STAGES.forEach(function (s) { s.areas.forEach(function (a) { if (m[a.key]) studied.push({ key: a.key, name: a.name, q: a.q, stage: s }); }); });
+  if (!studied.length) return null;
+  studied.sort(function (a, b) {
+    var ra = rkRiskOf(a.key), rb = rkRiskOf(b.key);
+    var lvA = ra.lv === "high" ? 2 : ra.lv === "med" ? 1 : 0;
+    var lvB = rb.lv === "high" ? 2 : rb.lv === "med" ? 1 : 0;
+    if (lvA !== lvB) return lvB - lvA;
+    return rkAreaMastery(a.key) - rkAreaMastery(b.key);
+  });
+  return studied[0];
+}
+function rkKdResult(title, ok) {
+  var s = rkLSGet(RK_KDSTATS, { cards: {} });
+  var c = s.cards[title] || { right: 0, wrong: 0, last: 0 };
+  if (ok) c.right++; else c.wrong++;
+  c.last = Date.now();
+  s.cards[title] = c;
+  rkLSSet(RK_KDSTATS, s);
+}
+function rkKdWeak() {
+  var s = rkLSGet(RK_KDSTATS, { cards: {} });
+  var arr = [];
+  Object.keys(s.cards).forEach(function (k) { var c = s.cards[k]; if (c.wrong > 0) arr.push({ title: k, wrong: c.wrong, right: c.right }); });
+  arr.sort(function (a, b) { return b.wrong - a.wrong; });
+  return arr.slice(0, 3);
+}
+function rkGameDone(type, id, title, wrong) {
+  var g = rkLSGet(RK_GAMES, { done: {} });
+  var key = type + ":" + id;
+  var first = !g.done[key];
+  g.done[key] = true;
+  rkLSSet(RK_GAMES, g);
+  rkAddXP(first ? 20 : 5, (first ? "首次通关 " : "复习 ") + title);
+}
+
+/* ---------- 遗忘地图（我的记忆 v2） ---------- */
+function rkOpenMemory() {
+  var html = rkHeader("🧠 我的记忆");
+  var totalA = rkAllTotal();
+  // 五大阶段掌握度条（掌握度算法：学习次数/最近学习/对错/遗忘衰减）
+  RK_STAGES.forEach(function (s) {
+    var v = rkStageVisited(s), t = s.areas.length;
+    var pct = rkStageMastery(s);
+    html += '<div style="margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px"><span>' + s.icon + ' ' + s.name + '</span><span style="color:var(--gold)">' + pct + '%</span></div>' +
+      '<div class="mem-bar"><i style="width:' + pct + '%"></i></div>' +
+      '<div style="font-size:10px;color:var(--dim);margin-top:4px">已学习 ' + v + '/' + t + ' 区域' + (v >= t ? ' · ✅ 已完成' : '') + '</div></div>';
+  });
+  // 今日最该复习
+  var rec = rkRecommend();
+  if (rec) {
+    var r = rkRiskOf(rec.key);
+    html += '<div style="background:rgba(192,80,60,.1);border:1px solid rgba(192,80,60,.4);border-radius:12px;padding:12px 14px;margin:6px 0 12px">' +
+      '<div style="font-size:12px;color:var(--cinnabar);font-weight:600;margin-bottom:6px">🔥 今天最应该复习</div>' +
+      '<div style="font-size:14px;color:var(--paper)">' + esc(rec.name) + ' <span style="font-size:10px;color:var(--cinnabar);border:1px solid rgba(192,80,60,.5);border-radius:4px;padding:1px 6px">遗忘风险' + r.name + '</span></div>' +
+      '<div style="font-size:11px;color:var(--dim);margin-top:6px">掌握度 ' + rkAreaMastery(rec.key) + '% · 建议修炼时间 ' + r.min + ' 分钟</div>' +
+      '<button onclick="rkOpenSearch(\'' + rec.q.replace(/'/g, "") + '\')" style="width:100%;margin-top:10px;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:9px 0;font-size:13px;cursor:pointer;font-family:inherit">📖 去复习 →</button></div>';
+  } else {
+    html += '<div style="background:rgba(217,180,91,.08);border:1px solid rgba(217,180,91,.3);border-radius:12px;padding:12px 14px;margin:6px 0 12px">' +
+      '<div style="font-size:12px;color:var(--gold)">🔥 还没有学习记录</div>' +
+      '<div style="font-size:11px;color:var(--dim);margin-top:4px">先去「项目世界」或「今日修炼」学几个考点，遗忘地图就会告诉你该复习什么。</div></div>';
+  }
+  // 薄弱考点（挖空闯关错题）
+  var weak = rkKdWeak();
+  if (weak.length) {
+    html += '<div class="section-h">📉 薄弱考点 · 挖空闯关常错</div>';
+    weak.forEach(function (w) {
+      html += '<div class="task-item" onclick="rkOpenSearch(\'' + w.title.replace(/'/g, "") + '\')">' +
+        '<div class="ck" style="border-color:var(--cinnabar);color:var(--cinnabar)">' + w.wrong + '</div>' +
+        '<div style="flex:1"><div style="font-size:13px">' + esc(w.title) + '</div>' +
+        '<div style="font-size:10px;color:var(--dim);margin-top:2px">错 ' + w.wrong + ' 次 · 对 ' + w.right + ' 次 · 点击巩固</div></div></div>';
+    });
+  }
+  // 待学习
+  var left = totalA - rkAllVisited();
+  html += '<div style="font-size:11px;color:var(--dim);line-height:1.9;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;margin-top:4px">' +
+    '🗺️ 项目世界还有 <b style="color:var(--gold)">' + left + '</b> 个区域没探索' +
+    '<br>🧠 掌握度 = 学习次数 × 14 + 全对奖励 − 错误扣分 − 遗忘衰减（每过1天−2）' +
+    '<br>💾 全部自动保存在本机</div>';
+  $("screen-memory").innerHTML = html;
+  showScreen("screen-memory");
 }
 
 /* ---------- 初始化 ---------- */

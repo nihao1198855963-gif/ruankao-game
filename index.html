@@ -96,7 +96,7 @@
     </div>
     <div class="pri-item pri-sub" onclick="rkOpenMap()">
       <div class="icon">🗺️</div>
-      <div><div class="t">知识地图</div><div class="d">知识点之间的关系网（第二阶段建设中）</div></div>
+      <div><div class="t">知识地图</div><div class="d">知识点关系网：主链+关系卡+「为什么」逻辑</div></div>
       <div class="go">›</div>
     </div>
   </div>
@@ -394,6 +394,7 @@ function kdCheck() {
     KD.streak = 0;
     toast("❌ 对照答案再看一遍");
   }
+  if (window.rkKdResult) rkKdResult(KD.qs[KD.qi].card.title, allRight);
   if (KD.qi + 1 >= KD.qs.length) btns = '<button onclick="kdResult()" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">🏁 查看成绩</button>';
   else btns = '<button onclick="kdNext()" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">下一题 ›</button>';
   btns += '<button onclick="kdGameHome()" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">↩ 换章节</button>';

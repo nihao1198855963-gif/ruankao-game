@@ -91,6 +91,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="process-questions.js"></script>
+<script src="rk-hook.js"></script>
 <script>
 var GROUPS = window.PROCESS_GROUPS || [];
 var AREAS = window.PROCESS_AREAS || [];
@@ -220,7 +221,7 @@ function dropTo(gi) {
     cur.selected = null;
     floatText("✓ " + card.name, "#4a9d7c");
     if (cur.placed >= a.cards.length) {
-      state.done[a.key] = true; saveState(); sndWin();
+      state.done[a.key] = true; saveState(); if (window.rkGameDone) rkGameDone("process", a.key, a.name, 0); sndWin();
       setTimeout(function(){
         $("gameBody").innerHTML =
           '<div class="win-box"><div class="win-big">🎉 领域通关！</div>' +
@@ -326,7 +327,7 @@ function udropTo(gi) {
     cur.placed++; cur.selected = null;
     floatText("✓ " + card.name, "#4a9d7c");
     if (cur.placed >= cur.cards.length) {
-      state.done["ultimate"] = true; saveState(); sndWin();
+      state.done["ultimate"] = true; saveState(); if (window.rkGameDone) rkGameDone("process", "ultimate", "终极挑战", 0); sndWin();
       setTimeout(function(){
         $("gameBody").innerHTML = '<div class="win-box"><div class="win-big">🎉 渡劫飞升！</div>' +
           '<div class="win-sub">全部 49 个过程已归位<br>你就是项目管理真仙！</div></div>' +
