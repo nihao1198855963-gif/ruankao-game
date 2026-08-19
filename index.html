@@ -107,8 +107,9 @@
     <div class="tcell" onclick="location.href='itto-sort.html'"><div class="ic">📦</div><div class="nm">输入输出闯关</div><div class="ds">输入/工具/输出三件套</div></div>
     <div class="tcell" onclick="location.href='node-sort.html'"><div class="ic">⏱️</div><div class="nm">开展节点闯关</div><div class="ds">49过程×3时点</div></div>
     <div class="tcell" onclick="openKnowledge()"><div class="ic">📚</div><div class="nm">考点库</div><div class="ds">挖空闯关+全览搜索</div></div>
-    <div class="tcell" onclick="openCompare()"><div class="ic">⚖️</div><div class="nm">易混辨析</div><div class="ds">24组易混对比</div></div>
-    <div class="tcell" onclick="openTips()"><div class="ic">📜</div><div class="nm">口诀速记</div><div class="ds">91条口诀翻卡</div></div>
+    <div class="tcell" onclick="rkOpenDuel()"><div class="ic">⚔️</div><div class="nm">知识对决</div><div class="ds">24组易混场景对决</div></div>
+    <div class="tcell" onclick="rkOpenEVM()"><div class="ic">📊</div><div class="nm">挣值仪表盘</div><div class="ds">拖动滑块理解 PV/EV/AC</div></div>
+    <div class="tcell" onclick="rkTipsHome()"><div class="ic">📜</div><div class="nm">口诀速记</div><div class="ds">三阶修炼+翻卡</div></div>
   </div>
   <div class="footer">数据来源：《综合知识》一本通 + 官方教材 · 无选择题，理解为王 · 进度自动保存在本机</div>
 </div>
@@ -116,6 +117,10 @@
 <div id="screen-daily" class="screen" style="display:none"></div>
 <div id="screen-memory" class="screen" style="display:none"></div>
 <div id="screen-map" class="screen" style="display:none"></div>
+<div id="screen-story" class="screen" style="display:none"></div>
+<div id="screen-boss" class="screen" style="display:none"></div>
+<div id="screen-evm" class="screen" style="display:none"></div>
+<div id="screen-duel" class="screen" style="display:none"></div>
 <div id="screen-knowledge" class="screen" style="display:none"></div>
 <div id="screen-compare" class="screen" style="display:none"></div>
 <div id="screen-tips" class="screen" style="display:none"></div>
@@ -526,5 +531,6 @@ function openTips() {
 }
 </script>
 <script src="world.js"></script>
+<script src="rk-story.js"></script>
 </body>
 </html>

@@ -182,6 +182,7 @@ function rkOpenWorld() {
     if (i < RK_STAGES.length - 1) html += '<div class="map-link">│</div>';
   });
   html += '</div>';
+  html += (window.rkBossSection ? rkBossSection() : '');
   $("screen-world").innerHTML = html;
   showScreen("screen-world");
 }
@@ -203,6 +204,8 @@ function rkStageClick(idx) {
   // 为什么系统：每个阶段存在的意义
   html += '<div class="section-h">🧠 为什么有' + s.name + '？</div>' +
     '<div style="font-size:12px;color:var(--paper);line-height:1.9;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px">' + esc(RK_WHY_STAGE[s.key] || "") + '</div>';
+  // 项目剧情（第三阶段）
+  html += (window.rkStorySection ? rkStorySection(idx) : '');
   $("screen-world").innerHTML = html;
   showScreen("screen-world");
 }
@@ -540,6 +543,7 @@ function rkMapNode(id) {
     '</div>';
   html += '<div style="display:flex;gap:10px;margin-top:14px">' +
     '<button onclick="rkMapStudy(\'' + id + '\')" style="flex:1;background:rgba(217,180,91,.2);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">📚 去考点库学习</button>' +
+    (id === "cost" ? '<button onclick="rkOpenEVM()" style="flex:1;background:rgba(74,157,124,.2);border:1px solid var(--jade);color:var(--jade);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">📊 挣值仪表盘</button>' : '') +
     '<button onclick="rkOpenMap()" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--dim);border-radius:10px;padding:10px 0;font-size:14px;cursor:pointer;font-family:inherit">🗺️ 返回地图</button></div>';
   $("screen-map").innerHTML = html;
   showScreen("screen-map");
