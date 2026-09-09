@@ -27,6 +27,9 @@
   .menu-item .desc { font-size: 11.5px; color: var(--dim); margin-top: 4px; line-height: 1.6; }
   .menu-item .go { margin-left: auto; color: var(--gold); font-size: 20px; }
 
+  .home-search { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(217,180,91,.16), rgba(255,255,255,.04)); border: 1px solid rgba(217,180,91,.5); border-radius: 12px; padding: 13px 14px; margin-top: 18px; cursor: pointer; transition: transform .15s; }
+  .home-search:active { transform: scale(.98); }
+
   .footer { text-align: center; font-size: 11px; color: var(--dim); margin-top: 30px; line-height: 1.8; }
 
   /* ===== 2.0 项目管理修炼世界 ===== */
@@ -77,6 +80,11 @@
     <div class="realm">项目管理修炼世界</div>
     <div class="subtitle">系统集成项目管理工程师 · 综合知识冲刺工具<br>扮演项目经理，在项目中理解知识，边玩边记</div>
   </div>
+  <div class="home-search" onclick="rkOpenSearch()">
+    <span style="font-size:18px">🔍</span>
+    <span style="flex:1;color:var(--dim);font-size:12.5px;letter-spacing:.5px">搜考点 / 搜关卡：评估 · 变更 · 鬼坟几十户…</span>
+    <span style="color:var(--gold);font-size:13px">搜索 ›</span>
+  </div>
   <div class="home-status" id="home-status"></div>
   <div class="pri">
     <div class="pri-item pri-main" onclick="rkOpenWorld()">
@@ -102,6 +110,7 @@
   </div>
   <div class="section-h">🎮 训练场 · 强化记忆</div>
   <div class="tgrid">
+    <div class="tcell" onclick="rkOpenSearch()"><div class="ic">🔍</div><div class="nm">全站搜考点</div><div class="ds">67关+49过程+考点库 一键定位直达</div></div>
     <div class="tcell" onclick="location.href='sort-game.html'"><div class="ic">🧩</div><div class="nm">顺序闯关</div><div class="ds">67关流程排序</div></div>
     <div class="tcell" onclick="location.href='process-sort.html'"><div class="ic">🏯</div><div class="nm">过程组闯关</div><div class="ds">49过程归位</div></div>
     <div class="tcell" onclick="location.href='itto-sort.html'"><div class="ic">📦</div><div class="nm">输入输出闯关</div><div class="ds">输入/工具/输出三件套</div></div>
@@ -125,6 +134,7 @@
 <div id="screen-knowledge" class="screen" style="display:none"></div>
 <div id="screen-compare" class="screen" style="display:none"></div>
 <div id="screen-tips" class="screen" style="display:none"></div>
+<div id="screen-search" class="screen" style="display:none"></div>
 <div id="toast" class="toast" style="position:fixed;left:50%;bottom:28%;transform:translateX(-50%);background:rgba(14,11,20,.92);border:1px solid var(--gold);color:var(--gold);padding:10px 22px;border-radius:30px;font-size:14px;z-index:99;display:none;font-family:'Kaiti SC',serif"></div>
 
 <script src="knowledge.js"></script>
@@ -558,5 +568,262 @@ function openTips() {
 <script src="rk-story.js"></script>
 <script src="kaodian.js"></script>
 <script src="kaodian-game.js"></script>
+<script src="sort-questions.js"></script>
+<script src="process-questions.js"></script>
+<script src="itto-questions.js"></script>
+<script src="node-questions.js"></script>
+<script>
+/* ============================================================
+   🔍 全站搜索（2026-09-10）：一次搜遍全部闯关游戏 + 考点库
+   数据源：SORT_QUESTIONS / PROCESS_AREAS / ITTO_LEVELS /
+          NODE_AREAS / KAODIAN / KNOWLEDGE
+   结果一键直达：独立游戏页走 URL 参数（?id=/?area=/?lvl=），
+   考点库走页内跳转（rkKdLearn 记忆关 / kdFilter 全览搜索）
+   ============================================================ */
+var GS_TIMER = null;
+function rkOpenSearch(kw) {
+  var html =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+    '<button class="btn-back" onclick="goHome()" style="background:none;border:1px solid rgba(217,180,91,.4);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit">← 返回</button>' +
+    '<h2 style="font-size:17px;color:var(--gold);font-family:\'Kaiti SC\',serif">🔍 全站搜考点</h2><span style="width:60px"></span></div>' +
+    '<div style="font-size:11px;color:var(--dim);line-height:1.8;margin-bottom:10px">一次搜遍 <b style="color:var(--gold)">顺序闯关67关 · 49过程（过程组/输入输出/开展节点）· 教材考点 · 知识卡</b>。搜考点名 / 关键词 / 口诀，命中即一键直达对应关卡。<br>例：<span style="color:var(--gold)">评估</span> · <span style="color:var(--gold)">变更</span> · <span style="color:var(--gold)">鬼坟几十户</span> · <span style="color:var(--gold)">WBS</span></div>' +
+    '<input id="gs-input" placeholder="🔍 输入关键词，如：评估 / 合同 / 风险 / 口诀…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(217,180,91,.5);border-radius:10px;color:var(--paper);padding:11px 14px;font-size:15px;margin-bottom:8px;font-family:inherit;outline:none">' +
+    '<div id="gs-stat" style="font-size:11px;color:var(--dim);margin-bottom:8px;min-height:14px"></div>' +
+    '<div id="gs-body"></div>';
+  $("screen-search").innerHTML = html;
+  showScreen("screen-search");
+  var inp = $("gs-input");
+  inp.addEventListener("input", function () {
+    clearTimeout(GS_TIMER);
+    var v = inp.value;
+    GS_TIMER = setTimeout(function () { gsRun(v); }, 150);
+  });
+  if (kw) { inp.value = kw; gsRun(kw); }
+  setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
+}
+function gsHas(txt, q) { return String(txt == null ? "" : txt).toLowerCase().indexOf(q) >= 0; }
+function gsSnip(text, q, pad) {
+  text = String(text == null ? "" : text); pad = pad || 18;
+  var i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(text.length > 64 ? text.slice(0, 64) + "…" : text);
+  var s = Math.max(0, i - pad), e = Math.min(text.length, i + q.length + pad);
+  return (s > 0 ? "…" : "") + esc(text.slice(s, i)) +
+    '<b style="color:var(--gold);background:rgba(217,180,91,.25);border-radius:3px;padding:0 2px">' + esc(text.slice(i, i + q.length)) + '</b>' +
+    esc(text.slice(i + q.length, e)) + (e < text.length ? "…" : "");
+}
+function gsCard(icon, tag, main, sub, go) {
+  return '<div onclick="' + go + '" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:9px 11px;margin-bottom:7px;cursor:pointer">' +
+    '<div style="font-size:19px;flex-shrink:0">' + icon + '</div>' +
+    '<div style="flex:1;min-width:0">' +
+    '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
+    '<span style="font-size:9.5px;color:var(--gold);border:1px solid rgba(217,180,91,.4);border-radius:4px;padding:1px 5px;flex-shrink:0;white-space:nowrap">' + tag + '</span>' + main + '</div>' +
+    (sub ? '<div style="font-size:10.5px;color:var(--dim);margin-top:3px;line-height:1.65">' + sub + '</div>' : '') +
+    '</div><span style="color:var(--gold);font-size:15px;flex-shrink:0">›</span></div>';
+}
+function gsSection(title, n, body) {
+  if (!body) return "";
+  return '<div class="section-h">' + title + ' <span style="font-size:10px;color:var(--dim);font-weight:400">' + n + '处命中</span></div>' + body;
+}
+function gsMainTitle(hit, raw, q) { return hit ? gsSnip(raw, q) : esc(raw); }
+
+/* 🧩 顺序闯关 67关 */
+function gsSortSection(q) {
+  var rows = [];
+  (window.SORT_QUESTIONS || []).forEach(function (x) {
+    var stepPick = null;
+    (x.steps || []).forEach(function (s) {
+      if (!stepPick && (gsHas(s.name, q) || gsHas(s.cue, q) || gsHas(s.desc, q))) {
+        stepPick = { lbl: "步骤", text: (s.name || "") + "：" + (s.cue || "") + " " + (s.desc || "") };
+      }
+    });
+    var mn = gsHas(x.mnemonic, q), hh = gsHas(x.hint, q);
+    var titleHit = gsHas(x.title, q);
+    if (!titleHit && !mn && !hh && !stepPick) return;
+    var sub = [];
+    if (!titleHit) sub.push(gsSnip(x.title, q));
+    var line = [];
+    if (mn) line.push("口诀：" + gsSnip(x.mnemonic, q, 10));
+    else if (hh) line.push("提示：" + gsSnip(x.hint, q, 10));
+    if (stepPick) line.push((stepPick.lbl === "步骤" ? "" : stepPick.lbl + "：") + gsSnip(stepPick.text, q, 12));
+    if (!sub.length && line.length) { sub = line; } else { line.slice(0, 2).forEach(function (t) { sub.push(t); }); }
+    rows.push({ rk: titleHit || mn ? 0 : 1, t: x.title, id: x.id, cat: x.cat, hit: titleHit, sub: sub });
+  });
+  rows.sort(function (a, b) { return a.rk === b.rk ? a.id - b.id : a.rk - b.rk; });
+  if (!rows.length) return { n: 0, html: "" };
+  var body = "";
+  rows.slice(0, 12).forEach(function (r) {
+    var tag = String(r.cat).replace(/第\s*(\d+)\s*章.*/, "第$1章");
+    var main = gsMainTitle(r.hit, r.t, q) + ' <span style="font-size:10px;color:var(--jade);font-weight:400">第' + r.id + '关</span>';
+    body += gsCard("🧩", tag, '<span style="font-size:13px;font-weight:600;color:var(--paper)">' + main + '</span>', r.sub.slice(0, 2).join('<br>'), "location.href='sort-game.html?id=" + r.id + "'");
+  });
+  if (rows.length > 12) body += '<div style="font-size:10.5px;color:var(--dim);text-align:center;padding-bottom:6px">…还有 ' + (rows.length - 12) + ' 关命中，直接输入更精确的关键词</div>';
+  return { n: rows.length, html: gsSection("🧩 顺序闯关", rows.length, body) };
+}
+
+/* 🏯 过程组闯关（49过程 → 5过程组） */
+function gsProcessSection(q) {
+  var rows = [];
+  (window.PROCESS_AREAS || []).forEach(function (a) {
+    var nameHit = gsHas(a.name, q);
+    (a.cards || []).forEach(function (c) {
+      var kwHit = gsHas(c.keywords, q), gpHit = gsHas(c.group, q);
+      if (!gsHas(c.name, q) && !kwHit && !gpHit && !nameHit) return;
+      rows.push({ rk: gsHas(c.name, q) ? 0 : 1, name: c.name, a: a, c: c, kwHit: kwHit, mainHit: gsHas(c.name, q) });
+    });
+  });
+  rows.sort(function (x, y) { return x.rk - y.rk; });
+  if (!rows.length) return { n: 0, html: "" };
+  var body = "";
+  rows.slice(0, 12).forEach(function (r) {
+    var sub = '归入「' + r.c.group + '」过程组' + (r.kwHit ? " · " + gsSnip(r.c.keywords, q, 12) : "");
+    body += gsCard("🏯", esc(r.a.name), '<span style="font-size:13px;font-weight:600;color:var(--paper)">' + gsMainTitle(r.mainHit, r.name, q) + '</span>', sub, "location.href='process-sort.html?area=" + r.a.key + "'");
+  });
+  return { n: rows.length, html: gsSection("🏯 过程组闯关", rows.length, body) };
+}
+
+/* 📦 输入输出闯关（49过程 × 输入/工具/输出） */
+function gsIttoSection(q) {
+  var rows = [];
+  (window.ITTO_LEVELS || []).forEach(function (l) {
+    var levelHit = gsHas(l.name, q) || gsHas(l.area, q) || gsHas(l.group, q);
+    var hits = [];
+    (l.cards || []).forEach(function (c) {
+      if (gsHas(c.name, q) || gsHas(c.keywords, q) || gsHas((c.sub || []).join(" "), q)) hits.push(c);
+    });
+    if (!levelHit && !hits.length) return;
+    var sub = [];
+    if (levelHit && !hits.length) sub.push("该过程三件套关卡");
+    hits.slice(0, 2).forEach(function (c) {
+      var nm = gsHas(c.name, q) ? gsSnip(c.name, q, 10) : esc(c.name);
+      sub.push(nm + " → " + gsSnip(c.slot, q, 6) + (gsHas(c.keywords, q) ? "（" + gsSnip(c.keywords, q, 8) + "）" : ""));
+    });
+    if (hits.length > 2) sub.push("…共 " + hits.length + " 张卡片命中");
+    rows.push({ rk: levelHit ? 0 : 1, name: l.name, a: l.area, key: l.key, mainHit: levelHit && gsHas(l.name, q), sub: sub, hits: hits.length });
+  });
+  rows.sort(function (x, y) { return x.rk === y.rk ? 0 : x.rk - y.rk; });
+  if (!rows.length) return { n: 0, html: "" };
+  var body = "";
+  rows.slice(0, 12).forEach(function (r) {
+    body += gsCard("📦", esc(r.a), '<span style="font-size:13px;font-weight:600;color:var(--paper)">' + gsMainTitle(r.mainHit, r.name, q) + '</span>', r.sub.slice(0, 3).join('<br>'), "location.href='itto-sort.html?lvl=" + r.key + "'");
+  });
+  return { n: rows.length, html: gsSection("📦 输入输出闯关", rows.length, body) };
+}
+
+/* ⏱️ 开展节点闯关（49过程 × 3时点） */
+function gsNodeSection(q) {
+  var rows = [];
+  var slotMap = {};
+  (window.NODE_SLOTS || []).forEach(function (s) { slotMap[s.key] = s.name || s.key; });
+  (window.NODE_AREAS || []).forEach(function (a) {
+    var nameHit = gsHas(a.name, q);
+    (a.cards || []).forEach(function (c) {
+      if (!gsHas(c.name, q) && !gsHas(c.keywords, q) && !nameHit) return;
+      rows.push({ rk: gsHas(c.name, q) ? 0 : 1, name: c.name, a: a, c: c, mainHit: gsHas(c.name, q) });
+    });
+  });
+  rows.sort(function (x, y) { return x.rk - y.rk; });
+  if (!rows.length) return { n: 0, html: "" };
+  var body = "";
+  rows.slice(0, 12).forEach(function (r) {
+    var sub = '开展时点：' + esc(slotMap[r.c.node] || r.c.node) + (gsHas(r.c.keywords, q) ? " · " + gsSnip(r.c.keywords, q, 12) : "");
+    body += gsCard("⏱️", esc(r.a.name), '<span style="font-size:13px;font-weight:600;color:var(--paper)">' + gsMainTitle(r.mainHit, r.name, q) + '</span>', sub, "location.href='node-sort.html?area=" + r.a.key + "'");
+  });
+  return { n: rows.length, html: gsSection("⏱️ 开展节点闯关", rows.length, body) };
+}
+
+/* 📖 教材考点（9~11章 记忆关） */
+function gsKaodianSection(q) {
+  var rows = [];
+  (window.KAODIAN || []).forEach(function (k) {
+    var itemHit = null;
+    (k.items || []).forEach(function (it) { if (!itemHit && gsHas(it, q)) itemHit = it; });
+    var titleHit = gsHas(k.title, q);
+    var hit = titleHit || gsHas(k.topic, q) || gsHas(k.mnemonic, q) || gsHas(k.scene, q) || itemHit || gsHas(k.confusable && k.confusable.d, q);
+    if (!hit) return;
+    var sub = [];
+    if (!titleHit && itemHit) sub.push("条目：" + gsSnip(itemHit, q, 14));
+    if (!sub.length && gsHas(k.mnemonic, q)) sub.push("口诀：" + gsSnip(k.mnemonic, q, 10));
+    if (!sub.length && gsHas(k.scene, q)) sub.push("场景：" + gsSnip(k.scene, q, 12));
+    if (!sub.length && k.confusable && gsHas(k.confusable.d, q)) sub.push("辨析：" + gsSnip(k.confusable.d, q, 12));
+    var m = 0;
+    if (typeof rkKmMastery === "function") m = rkKmMastery(k.id) || 0;
+    rows.push({ rk: titleHit || gsHas(k.mnemonic, q) ? 0 : 1, k: k, titleHit: titleHit, sub: sub, m: m });
+  });
+  rows.sort(function (x, y) { return x.rk - y.rk; });
+  if (!rows.length) return { n: 0, html: "" };
+  var body = "";
+  rows.slice(0, 12).forEach(function (r) {
+    var k = r.k;
+    var tag = String(k.chapterName || "").replace(/第(\d+)章.*/, "第$1章");
+    var ms = r.m > 0 ? ' <span style="font-size:9.5px;color:var(--jade);border:1px solid rgba(74,157,124,.5);border-radius:4px;padding:1px 5px;font-weight:400">掌握' + r.m + '%</span>' : "";
+    var sub = esc(k.chapterName) + " · " + esc(k.topic) + (r.sub.length ? "<br>" + r.sub.slice(0, 2).join("<br>") : "") + '<br><span style="color:var(--gold);font-size:10px">点此进入记忆关练熟它</span>';
+    body += gsCard("📖", tag, '<span style="font-size:13px;font-weight:600;color:var(--paper)">' + gsMainTitle(r.titleHit, k.title, q) + '</span>' + ms, sub, "rkKdLearn('" + k.id + "')");
+  });
+  return { n: rows.length, html: gsSection("📖 教材考点 · 记忆关", rows.length, body) };
+}
+
+/* 📚 知识卡（考点库挖空闯关数据） */
+function gsKdSection(q) {
+  var rows = [];
+  (window.KNOWLEDGE || []).forEach(function (c) {
+    (c.points || []).forEach(function (p) {
+      var pts = (p.points || []).filter(function (x) { return gsHas(x, q); });
+      var titleHit = gsHas(p.title, q);
+      if (!titleHit && !pts.length && !gsHas(p.mnemonic, q)) return;
+      var sub = [];
+      if (!titleHit && pts.length) sub.push(pts[0]);
+      if (gsHas(p.mnemonic, q)) sub.push("口诀：" + p.mnemonic);
+      rows.push({ rk: titleHit || gsHas(p.mnemonic, q) ? 0 : 1, p: p, cat: c.cat, titleHit: titleHit, sub: sub, n: pts.length });
+    });
+  });
+  rows.sort(function (x, y) { return x.rk - y.rk; });
+  if (!rows.length) return { n: 0, html: "" };
+  var body = "";
+  rows.slice(0, 8).forEach(function (r) {
+    var tag = String(r.cat || "").replace(/第(\d+)章.*/, "第$1章");
+    var extra = r.n > 1 ? " · 共" + r.n + "条要点命中" : "";
+    var sub = r.sub.slice(0, 2).map(function (t) { return gsSnip(t, q, 14); }).join("<br>") + extra + (r.sub.length ? "" : "") + '<br><span style="color:var(--jade);font-size:10px">点此在「考点库 · 全览搜索」查看完整卡</span>';
+    body += gsCard("📚", tag, '<span style="font-size:13px;font-weight:600;color:var(--paper)">' + gsMainTitle(r.titleHit, r.p.title, q) + '</span>', sub, "gsOpenBrowse('" + q.replace(/'/g, "\\'") + "')");
+  });
+  return { n: rows.length, html: gsSection("📚 考点库 · 知识卡", rows.length, body) };
+}
+
+function gsOpenBrowse(q) {
+  openKnowledge();
+  kdTab("browse");
+  var el = $("kd-search");
+  if (el) { el.value = q; kdFilter(q); }
+}
+function gsRun(raw) {
+  var q = String(raw || "").trim().toLowerCase();
+  var stat = $("gs-stat"), body = $("gs-body");
+  if (!body) return;
+  if (!q) {
+    stat.textContent = "";
+    body.innerHTML = '<div style="text-align:center;color:var(--dim);padding:36px 16px;font-size:13px;line-height:2.2">🔍 输入关键词开始搜索<br><span style="font-size:11px;color:var(--dim)">支持：考点名 / 过程名 / 关键词 / 口诀</span></div>';
+    return;
+  }
+  var secs = [gsSortSection(q), gsProcessSection(q), gsIttoSection(q), gsNodeSection(q), gsKaodianSection(q), gsKdSection(q)];
+  var total = 0, html = "";
+  secs.forEach(function (s) { total += s.n; if (s.html) html += s.html; });
+  if (!total) {
+    stat.textContent = "";
+    body.innerHTML = '<div style="text-align:center;color:var(--dim);padding:36px 16px;font-size:13px;line-height:2.2">🔍 没搜到「' + esc(String(raw || "").trim()) + '」<br><span style="font-size:11px;color:var(--dim)">试试别的说法：评估 / 章程 / 变更 / 风险 / 合同 / WBS<br>或口诀里的字，如「鬼坟」（= 信息系统生命周期）</span></div>';
+    return;
+  }
+  stat.innerHTML = '共 <b style="color:var(--gold)">' + total + '</b> 处命中 · 点击任意结果直达对应关卡/考点';
+  body.innerHTML = html;
+}
+/* 支持 index.html?search=关键词 直达搜索页 */
+(function () {
+  try {
+    var m = (location.search || "").match(/[?&](?:search|q)=([^&]*)/);
+    if (m) {
+      var kw = decodeURIComponent((m[1] || "").replace(/\+/g, " "));
+      if (kw) setTimeout(function () { rkOpenSearch(kw); }, 250);
+    }
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>

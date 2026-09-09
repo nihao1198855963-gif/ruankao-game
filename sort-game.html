@@ -118,6 +118,7 @@
     <span style="width:60px"></span>
   </div>
   <div style="font-size:12px;color:var(--dim);margin-bottom:10px">教材里必须按顺序记的流程，选择题最爱打乱了考——亲手排回去，多玩几次就都记住了。</div>
+  <input id="lvSearch" oninput="filterLevels(this.value)" placeholder="🔍 页内搜索：标题 / 口诀 / 提示 / 步骤关键词…（如：变更 / 风险 / 鬼坟）" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(217,180,91,.35);border-radius:10px;color:var(--paper);padding:9px 12px;font-size:13px;margin-bottom:10px;font-family:inherit;outline:none">
   <div class="chips" id="chips"></div>
   <div id="levelList" class="level-grid"></div>
   <div class="game-card" id="gameCard">
@@ -207,11 +208,20 @@ function renderChips() {
 }
 function setCat(c) {
   curCat = c;
+  var si = $("lvSearch"); if (si) si.value = "";
   renderChips();
   renderLevels();
 }
-function renderLevels() {
-  var list = curCat === "全部" ? QUESTIONS : QUESTIONS.filter(function(q){ return q.cat === curCat; });
+function filterLevels(v) { renderLevels(v); }
+function renderLevels(fq) {
+  fq = String(fq || "").trim().toLowerCase();
+  // 输入关键词时无视章节chip，全67关搜索；无关键词才按chip筛选
+  var list = fq ? QUESTIONS : (curCat === "全部" ? QUESTIONS : QUESTIONS.filter(function(q){ return q.cat === curCat; }));
+  if (fq) list = list.filter(function(q){
+    var blob = q.cat + " " + q.title + " " + (q.hint||"") + " " + (q.mnemonic||"") + " " + (q.source||"") + " " +
+      (q.steps||[]).map(function(s){ return s.name + " " + s.cue + " " + s.desc; }).join(" ");
+    return blob.toLowerCase().indexOf(fq) >= 0;
+  });
   var html = "";
   list.forEach(function(q){
     var done = state.done[q.id];
@@ -222,6 +232,7 @@ function renderLevels() {
       (q.mnemonic ? '<div class="lv-hint">📜 ' + esc(q.mnemonic) + '</div>' : '') +
       '</button>';
   });
+  if (!list.length) html = fq ? '<div style="text-align:center;color:var(--dim);padding:30px 10px;font-size:13px">🔍 没搜到，换个关键词或切回「全部」试试</div>' : "";
   $("levelList").innerHTML = html;
 }
 
@@ -232,6 +243,7 @@ function startLevel(id) {
   cur = { q: q, placed: 0, wrongCount: 0, hintUsed: false };
   // 同步章节筛选
   curCat = q.cat;
+  var si = $("lvSearch"); if (si) si.value = "";
   renderChips(); renderLevels();
   renderGame();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -385,6 +397,11 @@ function showImage() {
 
 renderChips();
 renderLevels();
+/* 深链直达：sort-game.html?id=17（全站搜索结果跳转用） */
+(function(){
+  var m = (location.search || "").match(/[?&]id=(\d+)/);
+  if (m) { var _id = parseInt(m[1], 10); if (QUESTIONS.some(function(x){ return x.id === _id; })) startLevel(_id); }
+})();
 </script>
 </body>
 </html>

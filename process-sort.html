@@ -77,6 +77,7 @@
     <span style="width:60px"></span>
   </div>
   <div style="font-size:12px;color:var(--dim);margin-bottom:10px">十大领域 × 五大过程组——软考最核心的知识框架。点卡片选中，再点它该去的过程组，边玩边记。</div>
+  <input id="lvSearch" oninput="filterAreas(this.value)" placeholder="🔍 页内搜索：过程 / 领域关键词…（如：章程 / 采购 / 风险）" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(217,180,91,.35);border-radius:10px;color:var(--paper);padding:9px 12px;font-size:13px;margin-bottom:10px;font-family:inherit;outline:none">
   <div class="chips" id="chips"></div>
   <div class="game-card">
     <div class="game-head">
@@ -121,20 +122,35 @@ function sndWin(){ [523,659,784,1047].forEach(function(f,i){setTimeout(function(
 })();
 
 function renderChips() {
-  $("chips").innerHTML = AREAS.map(function(a){
+  $("chips").innerHTML = visibleAreas().map(function(a){
     return '<button class="chip' + (curAreaKey===a.key?' active':'') + (state.done[a.key]?' done':'') + '" onclick="startArea(\'' + a.key + '\')">' + esc(a.name) + '</button>';
-  }).join("");
+  }).join("") || '<div style="color:var(--dim);font-size:12px;padding:6px 2px">🔍 没搜到相关领域，换个关键词试试</div>';
+}
+var pageQ = "";
+function areaBlob(a) {
+  return a.name + " " + (a.memory||"") + " " + (a.cards||[]).map(function(c){ return c.name + " " + (c.keywords||"") + " " + (c.group||""); }).join(" ");
+}
+function visibleAreas() {
+  var q = pageQ.trim().toLowerCase();
+  if (!q) return AREAS;
+  return AREAS.filter(function(a){ return areaBlob(a).toLowerCase().indexOf(q) >= 0; });
+}
+function filterAreas(v) {
+  pageQ = v;
+  renderChips(); renderMap();
 }
 function renderMap() {
   var doneN = AREAS.filter(function(a){ return state.done[a.key]; }).length;
   $("mapProg").textContent = doneN + "/" + AREAS.length + " 已通关";
-  $("areaMap").innerHTML = AREAS.map(function(a){
+  $("areaMap").innerHTML = visibleAreas().map(function(a){
     return '<button class="area-btn' + (state.done[a.key]?' done':'') + (curAreaKey===a.key?' active':'') + '" onclick="startArea(\'' + a.key + '\')">' + esc(a.name.replace("管理","")) + (state.done[a.key]?' ✓':'') + '</button>';
-  }).join("") + '<button class="area-btn' + (state.done["ultimate"]?' done':'') + (curAreaKey==="ultimate"?' active':'') + '" onclick="startArea(\'ultimate\')">终极' + (state.done["ultimate"]?' ✓':'') + '</button>';
+  }).join("") + (visibleAreas().length === AREAS.length ? '<button class="area-btn' + (state.done["ultimate"]?' done':'') + (curAreaKey==="ultimate"?' active':'') + '" onclick="startArea(\'ultimate\')">终极' + (state.done["ultimate"]?' ✓':'') + '</button>' : '');
 }
 
 function startArea(key) {
   curAreaKey = key;
+  pageQ = "";
+  var si = $("lvSearch"); if (si) si.value = "";
   if (key === "ultimate") {
     // 终极：全部49过程混合
     var cards = [];
@@ -363,6 +379,11 @@ function uanswer() {
 
 renderChips();
 renderMap();
+/* 深链直达：process-sort.html?area=integration（全站搜索结果跳转用） */
+(function(){
+  var m = (location.search || "").match(/[?&]area=([^&]+)/);
+  if (m) { var _k = decodeURIComponent(m[1]); if (_k === "ultimate" || AREAS.some(function(a){ return a.key === _k; })) startArea(_k); }
+})();
 </script>
 </body>
 </html>
